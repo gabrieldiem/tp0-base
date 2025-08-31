@@ -19,7 +19,7 @@ SERVER_SERVICE="
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
     volumes:
-      - ./server/config.ini:/config.ini:ro
+      - ./server/config.ini:/config.ini
     networks:
       - testing_net"
 
@@ -39,7 +39,7 @@ format_client_service() {
       - CLI_ID=$client_num
       - CLI_LOG_LEVEL=DEBUG
     volumes:
-      - ./client/config.yaml:/config.yaml:ro
+      - ./client/config.yaml:/config.yaml
     networks:
       - testing_net
     depends_on:
