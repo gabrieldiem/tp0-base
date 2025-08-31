@@ -1,5 +1,4 @@
 import socket
-import logging
 
 
 class Server:
@@ -7,11 +6,13 @@ class Server:
     SOCKET_BUFFER_SIZE = 1024
     CHAR_ENCODING = 'utf-8'
     
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, logger):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        
+        self.logger = logger
 
     def run(self):
         """
@@ -50,13 +51,13 @@ class Server:
 
             msg = data.strip().decode(self.CHAR_ENCODING)
             
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
+            self.logger.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
             
             raw_encoded_msg = f"{msg}\n".encode(self.CHAR_ENCODING)
             client_sock.sendall(raw_encoded_msg)
             
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            self.logger.error("action: receive_message | result: fail | error: {e}")
             
         finally:
             client_sock.close()
@@ -70,7 +71,7 @@ class Server:
         """
 
         # Connection arrived
-        logging.info('action: accept_connections | result: in_progress')
+        self.logger.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+        self.logger.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c

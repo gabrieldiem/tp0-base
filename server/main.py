@@ -2,7 +2,7 @@
 
 from configparser import ConfigParser
 from common.server import Server
-import logging
+from common.logger import Logger
 import os
 
 GENERIC_ERROR_CODE = 1
@@ -35,7 +35,6 @@ def initialize_config():
 
     return config_params
 
-
 def main() -> int:
     """
     Returns the exit code where a non-zero exit code means there was an error
@@ -46,34 +45,24 @@ def main() -> int:
         port = config_params["port"]
         listen_backlog = config_params["listen_backlog"]
 
-        initialize_log(logging_level)
+        logger_starter = Logger(level=logging_level)
+        logger_starter.start()
+        
+        logger = logger_starter.get_logger()
 
         # Log config parameters at the beginning of the program to verify the configuration
         # of the component
-        logging.debug(f"action: config | result: success | port: {port} | "
+        logger.debug(f"action: config | result: success | port: {port} | "
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server = Server(port, listen_backlog)
+        server = Server(port, listen_backlog, logger)
         server.run()
         return SUCCESS_CODE
     
     except Exception as e:
         print("Exception:", e)
         return GENERIC_ERROR_CODE
-    
-def initialize_log(logging_level):
-    """
-    Python custom logging initialization
-
-    Current timestamp is added to be able to identify in docker
-    compose logs the date when the log has arrived
-    """
-    logging.basicConfig(
-        format='%(asctime)s %(levelname)-8s %(message)s',
-        level=logging_level,
-        datefmt='%Y-%m-%d %H:%M:%S',
-    )
 
 
 if __name__ == "__main__":
