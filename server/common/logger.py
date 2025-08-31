@@ -8,9 +8,10 @@ class CustomLogger:
     MAX_LOG_QUEUE_SIZE: int = 10_000
     LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
     LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
+    DEFAULT_LOG_LEVEL: int = logging.INFO
 
     def __init__(self, level: str):
-        level_parsed: int = logging.getLevelNamesMapping()[level]
+        level_parsed: int = getattr(logging, level, self.DEFAULT_LOG_LEVEL)
 
         self.log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
 
@@ -26,11 +27,11 @@ class CustomLogger:
         self.root_logger: Logger = logging.getLogger()
         self.root_logger.setLevel(level_parsed)
 
-    def start(self):
+    def start(self) -> None:
         """Start the listener"""
         self.listener.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the listener gracefully"""
         self.listener.stop()
 

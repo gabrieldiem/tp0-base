@@ -3,8 +3,10 @@
 from configparser import ConfigParser
 from common.server import Server
 from common.logger import CustomLogger
+from common.signal_handler import SignalHandler
 from logging import Logger
 import os
+
 
 GENERIC_ERROR_CODE = 1
 SUCCESS_CODE = 0
@@ -57,9 +59,13 @@ def main() -> int:
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server: Server = Server(port, listen_backlog, logger)
-        
+        server: Server = Server(port, listen_backlog, logger_starter.get_logger())
         server.start()
+        
+        # Register signal handler
+        signal_handler: SignalHandler = SignalHandler(server, logger)
+        signal_handler.register()
+
         server.join()
         
         return SUCCESS_CODE

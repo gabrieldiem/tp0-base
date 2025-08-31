@@ -21,7 +21,7 @@ class Server(Process):
         self._server_socket: Optional[Socket] = None
         self._logger: Logger = logger
 
-    def run(self):
+    def run(self) -> None:
         """
         Dummy Server loop
 
@@ -49,7 +49,7 @@ class Server(Process):
 
             self.__handle_client_connection(client_sock)
 
-    def __handle_client_connection(self, client_sock: Socket):
+    def __handle_client_connection(self, client_sock: Socket) -> None:
         """
         Read message from a specific client socket and closes the socket
 
@@ -86,7 +86,7 @@ class Server(Process):
 
         return data.strip().decode(self.CHAR_ENCODING)
 
-    def __send_message(self, client_sock: Socket, msg: str):
+    def __send_message(self, client_sock: Socket, msg: str) -> None:
         raw_encoded_msg: bytes = f"{msg}\n".encode(self.CHAR_ENCODING)
         client_sock.sendall(raw_encoded_msg)
 
@@ -109,7 +109,7 @@ class Server(Process):
 
         raise SocketNotInitializedException
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the server loop"""
         if self._server_socket:
             try:
