@@ -1,22 +1,23 @@
 import signal
 from logging import Logger
 from common.server import Server
+from types import FrameType
+from typing import Optional
+
 
 class SignalHandler:
     def __init__(self, server: Server, logger: Logger):
-        self.server = server
-        self.logger = logger
+        self._server = server
+        self._logger = logger
 
-    def __call__(self, signum, frame) -> None:
-        """Make the instance callable so it can be used as a signal handler"""
-        self.logger.info(
-            f"action: signal_received | signal_number: {signum}"
-        )
-        self.server.stop()
-        self.server.join()
-        self.logger.info("action: shutdown | result: success")
+    def __handle_signal(self, signum: int, _frame: Optional[FrameType]) -> None:
+        """Logs the signal number and stops the Server"""
+        self._logger.info(f"action: signal_received | signal_number: {signum}")
+        self._server.stop()
+        self._server.join()
+        self._logger.info("action: shutdown | result: success")
 
     def register(self) -> None:
         """Register the handler for SIGINT and SIGTERM"""
-        signal.signal(signal.SIGINT, self)
-        signal.signal(signal.SIGTERM, self)
+        signal.signal(signal.SIGINT, self.__handle_signal)
+        signal.signal(signal.SIGTERM, self.__handle_signal)
