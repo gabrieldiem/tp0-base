@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	GENERIC_ERROR         = 1
+	GENERIC_ERROR_CODE    = 1
 	FAILED_TO_LOAD_CONFIG = 2
 )
 
@@ -120,6 +120,6 @@ func main() {
 
 	err = client.StartClientLoop()
 	if err != nil {
-		os.Exit(GENERIC_ERROR)
+		os.Exit(GENERIC_ERROR_CODE)
 	}
 }
