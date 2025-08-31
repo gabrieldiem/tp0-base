@@ -237,6 +237,8 @@ Por defecto el target del Makefile `docker-compose-up` busca el archivo de Docke
 make docker-compose-up
 ```
 
+Se agregó un flush de logs en el cliente antes de finalizar el proceso, con el objetivo de asegurar que todo el contenido pendiente en los buffers de `stdout` y `stderr` sea enviado, de modo que el logger de Docker pueda recibirlo correctamente.
+
 ### Sobre el Ejercicio N°2
 
 Para lograr que no sea necesario reconstruir las imágenes de Docker se utilizaron dos artefactos: volúmenes (`docker volumes`) y `.dockerignore`.
