@@ -17,7 +17,6 @@ SERVER_SERVICE="
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
     volumes:
       - ./server/config.ini:/config.ini
     networks:
@@ -37,7 +36,6 @@ format_client_service() {
     entrypoint: /client
     environment:
       - CLI_ID=$client_num
-      - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
