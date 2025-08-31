@@ -95,6 +95,13 @@ func PrintConfig(v *viper.Viper) {
 	)
 }
 
+// Flushes any buffered data in stdout and stderr to ensure
+// all logs are written.
+func flush_logs() {
+	os.Stdout.Sync()
+	os.Stderr.Sync()
+}
+
 func main() {
 	v, err := InitConfig()
 	if err != nil {
@@ -119,6 +126,9 @@ func main() {
 	client := common.NewClient(clientConfig)
 
 	err = client.StartClientLoop()
+
+	flush_logs()
+
 	if err != nil {
 		os.Exit(GENERIC_ERROR_CODE)
 	}
