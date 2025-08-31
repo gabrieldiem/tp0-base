@@ -3,6 +3,10 @@ import logging
 
 
 class Server:
+    RAW_MESSAGE_DELIMITER = b'\n'
+    SOCKET_BUFFER_SIZE = 1024
+    CHAR_ENCODING = 'utf-8'
+    
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,14 +36,28 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
+            data = b""
+            delimiter = self.RAW_MESSAGE_DELIMITER
+            
+            while delimiter not in data:
+                chunk = client_sock.recv(self.SOCKET_BUFFER_SIZE)
+                
+                if not chunk:
+                    raise ConnectionError("Client disconnected during reception")
+                
+                data += chunk
+
+            msg = data.strip().decode(self.CHAR_ENCODING)
+            
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            
+            raw_encoded_msg = f"{msg}\n".encode(self.CHAR_ENCODING)
+            client_sock.sendall(raw_encoded_msg)
+            
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
+            
         finally:
             client_sock.close()
 
