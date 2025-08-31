@@ -71,6 +71,7 @@ class Server(Process):
 
         finally:
             client_sock.close()
+            self._logger.info("action: client_connection_socket_closed  | result: success")
 
     def __receive_message(self, client_sock: Socket) -> str:
         data: bytes = b""
@@ -114,5 +115,6 @@ class Server(Process):
         if self._server_socket:
             try:
                 self._server_socket.close()
+                self._logger.info("action: server_welcomming_socket_closed  | result: success")
             except OSError:
                 pass

@@ -4,7 +4,7 @@ from logging.handlers import QueueHandler, QueueListener
 from logging import Formatter, StreamHandler, Logger
 
 
-class CustomLogger:
+class LoggerHandler:
     MAX_LOG_QUEUE_SIZE: int = 10_000
     LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
     LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
@@ -34,6 +34,9 @@ class CustomLogger:
     def stop(self) -> None:
         """Stop the listener gracefully"""
         self._listener.stop()
+        self._log_queue.close()
+        self._log_queue.join_thread()
+        self._root_logger.info("action: logger_queue_resources_closed  | result: success")
 
     def get_logger(self) -> Logger:
         """
