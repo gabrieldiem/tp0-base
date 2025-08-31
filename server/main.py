@@ -3,12 +3,13 @@
 from configparser import ConfigParser
 from common.server import Server
 from common.logger import CustomLogger
+from logging import Logger
 import os
 
 GENERIC_ERROR_CODE = 1
 SUCCESS_CODE = 0
 
-def initialize_config():
+def initialize_config() -> dict:
     """ Parse env variables or config file to find program config params
 
     Function that search and parse program configuration parameters in the
@@ -40,15 +41,15 @@ def main() -> int:
     Returns the exit code where a non-zero exit code means there was an error
     """
     try:
-        config_params = initialize_config()
-        logging_level = config_params["logging_level"]
-        port = config_params["port"]
-        listen_backlog = config_params["listen_backlog"]
+        config_params: dict = initialize_config()
+        logging_level: str = config_params["logging_level"]
+        port: str = config_params["port"]
+        listen_backlog: int = config_params["listen_backlog"]
 
-        logger_starter = CustomLogger(level=logging_level)
+        logger_starter: CustomLogger = CustomLogger(level=logging_level)
         logger_starter.start()
         
-        logger = logger_starter.get_logger()
+        logger: Logger = logger_starter.get_logger()
 
         # Log config parameters at the beginning of the program to verify the configuration
         # of the component
@@ -56,7 +57,7 @@ def main() -> int:
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server = Server(port, listen_backlog, logger)
+        server: Server = Server(port, listen_backlog, logger)
         
         server.start()
         server.join()
@@ -69,5 +70,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    exit_code = main()
+    exit_code: int = main()
     exit(exit_code)

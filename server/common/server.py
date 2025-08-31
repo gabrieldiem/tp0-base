@@ -2,9 +2,12 @@ import socket
 from multiprocessing import Process
 from logging import Logger
 from socket import socket as Socket
-from common.exceptions.socket_not_initialized_exception import SocketNotInitializedException
+from common.exceptions.socket_not_initialized_exception import (
+    SocketNotInitializedException,
+)
 
 from typing import Optional, List
+
 
 class Server(Process):
     RAW_MESSAGE_DELIMITER = b"\n"
@@ -30,7 +33,7 @@ class Server(Process):
         self._server_socket.bind(("", self._port))
         self._server_socket.listen(self._listen_backlog)
 
-        self._logger.info( f"action: starting_loop | result: success")
+        self._logger.info(f"action: starting_loop | result: success")
 
         while True:
             try:
@@ -39,7 +42,9 @@ class Server(Process):
                 # Socket was closed -> shutdown
                 break
             except SocketNotInitializedException as e:
-                self._logger.critical( f"action: accept_connections | result: fail | {e}")
+                self._logger.critical(
+                    f"action: accept_connections | result: fail | {e}"
+                )
                 break
 
             self.__handle_client_connection(client_sock)
