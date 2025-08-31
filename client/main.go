@@ -13,6 +13,11 @@ import (
 	"github.com/7574-sistemas-distribuidos/docker-compose-init/client/common"
 )
 
+const (
+	GENERIC_ERROR         = 1
+	FAILED_TO_LOAD_CONFIG = 2
+)
+
 var log = logging.MustGetLogger("log")
 
 // InitConfig Function that uses viper library to parse configuration parameters.
@@ -94,6 +99,7 @@ func main() {
 	v, err := InitConfig()
 	if err != nil {
 		log.Criticalf("%s", err)
+		os.Exit(FAILED_TO_LOAD_CONFIG)
 	}
 
 	if err := InitLogger(v.GetString("log.level")); err != nil {
@@ -111,5 +117,9 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
-	client.StartClientLoop()
+
+	err = client.StartClientLoop()
+	if err != nil {
+		os.Exit(GENERIC_ERROR)
+	}
 }
