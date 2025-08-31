@@ -13,7 +13,7 @@ class CustomLogger:
     def __init__(self, level: str):
         level_parsed: int = getattr(logging, level, self.DEFAULT_LOG_LEVEL)
 
-        self.log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
+        self._log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
 
         formatter: Formatter = logging.Formatter(
             fmt=self.LOG_FORMAT,
@@ -22,18 +22,18 @@ class CustomLogger:
 
         console_handler: StreamHandler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        self.listener: QueueListener = QueueListener(self.log_queue, console_handler)
+        self._listener: QueueListener = QueueListener(self._log_queue, console_handler)
 
-        self.root_logger: Logger = logging.getLogger()
-        self.root_logger.setLevel(level_parsed)
+        self._root_logger: Logger = logging.getLogger()
+        self._root_logger.setLevel(level_parsed)
 
     def start(self) -> None:
         """Start the listener"""
-        self.listener.start()
+        self._listener.start()
 
     def stop(self) -> None:
         """Stop the listener gracefully"""
-        self.listener.stop()
+        self._listener.stop()
 
     def get_logger(self) -> Logger:
         """
@@ -45,6 +45,6 @@ class CustomLogger:
         # clear existing handlers
         logger.handlers = []
 
-        logger.addHandler(QueueHandler(self.log_queue))
-        logger.setLevel(self.root_logger.level)
+        logger.addHandler(QueueHandler(self._log_queue))
+        logger.setLevel(self._root_logger.level)
         return logger
