@@ -19,12 +19,11 @@ SERVER_SERVICE="
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
     networks:
-      - testing_net
-"
+      - testing_net"
 
 # Write server to file as YAML, which will always be one even if there are n clients
 # Truncates (overwrites) if file already exists
-echo -e "name: tp0\nservices: $SERVER_SERVICE" > "$OUTPUT_FILENAME"
+echo -e "name: tp0\nservices:$SERVER_SERVICE" > "$OUTPUT_FILENAME"
 
 # Returns the YAML string for a single client taking as first arg the client number
 format_client_service() {
@@ -41,7 +40,7 @@ format_client_service() {
       - testing_net
     depends_on:
       - server
-  "
+"
 }
 
 # Append clients to YAML file
@@ -56,8 +55,7 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.25.125.0/24
-"
+        - subnet: 172.25.125.0/24"
 
 # Append the network info to YAML file
 echo " $NETWORK" >> "$OUTPUT_FILENAME"
