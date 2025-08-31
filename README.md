@@ -25,6 +25,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
 1. [Entrega](#Entrega)
    1. [Sobre el Ejercicio N°1](#Sobre-el-Ejercicio-N1)
    1. [Sobre el Ejercicio N°2](#Sobre-el-Ejercicio-N2)
+   1. [Sobre el Ejercicio N°3](#Sobre-el-Ejercicio-N3)
 
 ## Instrucciones de uso
 
@@ -246,3 +247,15 @@ Para lograr que no sea necesario reconstruir las imágenes de Docker se utilizar
 Se crearon los archivos `.dockerignore` para evitar incluir determinados archivos o carpetas en el build context de Docker, uno para el cliente que ignore el archivo `config.yaml` y uno para el server que ignore el archivo `config.ini`. Adicionalmente, se decidió excluir el mismo `.dockerignore` y `Dockerfile`, además del directorio `__pycache__`, ya que no son necesarios en el build context.
 
 Se editó el script generador del YAML de Docker Compose, donde se agregó la montura de los archivos de configuración como volumen que comprende a sólo dichos archivos. Para el caso de los clientes, cabe aclarar que todos los clientes comparten el mismo archivo de configuración.
+
+### Sobre el Ejercicio N°3
+
+Para la implementación del validador del echo server se utilizó la imagen de Docker `busybox`, primeramente porque ya tiene incorporado la utilidad de netcat y además ya se encuentra descargada al correr el proyecto por lo que no es necesario hacer pull de una nueva imagen.
+
+Se corre un container basado en la imagen `busybox` con el agregado de la red `tp0_testing_net` que se crea al levantar los containers con Docker Compose. De esta manera, el container puede mandar el mensaje mediante netcat hacia el echo server y recibir la respuesta, que posteriormente se verifica en el bash script e imprime el log correspondiente.
+
+Para ejecutarlo basta con correr el script como ejecutable sin argumentos:
+
+```bash
+./validar-echo-server.sh
+```
