@@ -5,6 +5,8 @@ from common.server import Server
 import logging
 import os
 
+GENERIC_ERROR_CODE = 1
+SUCCESS_CODE = 0
 
 def initialize_config():
     """ Parse env variables or config file to find program config params
@@ -34,23 +36,32 @@ def initialize_config():
     return config_params
 
 
-def main():
-    config_params = initialize_config()
-    logging_level = config_params["logging_level"]
-    port = config_params["port"]
-    listen_backlog = config_params["listen_backlog"]
+def main() -> int:
+    """
+    Returns the exit code where a non-zero exit code means there was an error
+    """
+    try:
+        config_params = initialize_config()
+        logging_level = config_params["logging_level"]
+        port = config_params["port"]
+        listen_backlog = config_params["listen_backlog"]
 
-    initialize_log(logging_level)
+        initialize_log(logging_level)
 
-    # Log config parameters at the beginning of the program to verify the configuration
-    # of the component
-    logging.debug(f"action: config | result: success | port: {port} | "
-                  f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
+        # Log config parameters at the beginning of the program to verify the configuration
+        # of the component
+        logging.debug(f"action: config | result: success | port: {port} | "
+                    f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
-    # Initialize server and start server loop
-    server = Server(port, listen_backlog)
-    server.run()
-
+        # Initialize server and start server loop
+        server = Server(port, listen_backlog)
+        server.run()
+        return SUCCESS_CODE
+    
+    except Exception as e:
+        print("Exception:", e)
+        return GENERIC_ERROR_CODE
+    
 def initialize_log(logging_level):
     """
     Python custom logging initialization
@@ -66,4 +77,5 @@ def initialize_log(logging_level):
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    exit(exit_code)
