@@ -1,26 +1,26 @@
 import logging
-import multiprocessing
+from multiprocessing import Queue
 from logging.handlers import QueueHandler, QueueListener
+from logging import Formatter, StreamHandler, Logger
 
-
-class Logger:
-    MAX_LOG_QUEUE_SIZE = 10_000
-    LOG_FORMAT = "%(asctime)s %(levelname)-8s %(message)s"
-    LOG_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+class CustomLogger:
+    MAX_LOG_QUEUE_SIZE: int = 10_000
+    LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
+    LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
     def __init__(self, level=logging.INFO):
-        self.log_queue = multiprocessing.Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
+        self.log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
 
-        formatter = logging.Formatter(
+        formatter: Formatter = logging.Formatter(
             fmt=self.LOG_FORMAT,
             datefmt=self.LOG_DATETIME_FORMAT,
         )
 
-        console_handler = logging.StreamHandler()
+        console_handler: StreamHandler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        self.listener = QueueListener(self.log_queue, console_handler)
+        self.listener: QueueListener = QueueListener(self.log_queue, console_handler)
 
-        self.root_logger = logging.getLogger()
+        self.root_logger: Logger = logging.getLogger()
         self.root_logger.setLevel(level)
 
     def start(self):
@@ -31,12 +31,12 @@ class Logger:
         """Stop the listener gracefully"""
         self.listener.stop()
 
-    def get_logger(self):
+    def get_logger(self) -> Logger:
         """
         Get a logger that sends records to the queue.
         Multiprocessing-safe
         """
-        logger = logging.getLogger()
+        logger: Logger = logging.getLogger()
 
         # clear existing handlers
         logger.handlers = []

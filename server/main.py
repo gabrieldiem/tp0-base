@@ -2,7 +2,7 @@
 
 from configparser import ConfigParser
 from common.server import Server
-from common.logger import Logger
+from common.logger import CustomLogger
 import os
 
 GENERIC_ERROR_CODE = 1
@@ -45,7 +45,7 @@ def main() -> int:
         port = config_params["port"]
         listen_backlog = config_params["listen_backlog"]
 
-        logger_starter = Logger(level=logging_level)
+        logger_starter = CustomLogger(level=logging_level)
         logger_starter.start()
         
         logger = logger_starter.get_logger()
@@ -57,7 +57,10 @@ def main() -> int:
 
         # Initialize server and start server loop
         server = Server(port, listen_backlog, logger)
-        server.run()
+        
+        server.start()
+        server.join()
+        
         return SUCCESS_CODE
     
     except Exception as e:
