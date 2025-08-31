@@ -24,6 +24,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
 1. [Condiciones de Entrega](#Condiciones-de-Entrega)
 1. [Entrega](#Entrega)
    1. [Sobre el Ejercicio N°1](#Sobre-el-Ejercicio-N1)
+   1. [Sobre el Ejercicio N°2](#Sobre-el-Ejercicio-N2)
 
 ## Instrucciones de uso
 
@@ -235,3 +236,11 @@ Por defecto el target del Makefile `docker-compose-up` busca el archivo de Docke
 ```bash
 make docker-compose-up
 ```
+
+### Sobre el Ejercicio N°2
+
+Para lograr que no sea necesario reconstruir las imágenes de Docker se utilizaron dos artefactos: volúmenes (`docker volumes`) y `.dockerignore`.
+
+Se crearon los archivos `.dockerignore` para evitar incluir determinados archivos o carpetas en el build context de Docker, uno para el cliente que ignore el archivo `config.yaml` y uno para el server que ignore el archivo `config.ini`. Adicionalmente, se decidió excluir el mismo `.dockerignore` y `Dockerfile`, además del directorio `__pycache__`, ya que no son necesarios en el build context.
+
+Se editó el script generador del YAML de Docker Compose, donde se agregó la montura de los archivos de configuración como volumen que comprende a sólo dichos archivos. Para el caso de los clientes, cabe aclarar que todos los clientes comparten el mismo archivo de configuración.
