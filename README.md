@@ -237,3 +237,5 @@ make docker-compose-up
 ```
 
 Se agregó un flush de logs en el cliente antes de finalizar el proceso, con el objetivo de asegurar que todo el contenido pendiente en los buffers de `stdout` y `stderr` sea enviado, de modo que el logger de Docker pueda recibirlo correctamente.
+
+Ya que se encontró el `TODO` y se considera esencial para el funcionamiento de aplicaciones conectadas mediante red que no exista short-read ni short-write, además de para asegurar la correcta ejecución ejecución de las pruebas ahora y en los ejercicios siguientes. Para ello, en el caso de recepción de mensaje de itera sobre el socket hasta recibir el delimitador `\n` y para el caso de envío se utilizó la función de `socket` de Python `sendAll` y para el caso de Go se iteró hasta escribir todos los bytes en la conexión `conn`.
