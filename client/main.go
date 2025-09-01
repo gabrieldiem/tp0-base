@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -17,6 +20,7 @@ const (
 	CONFIG_FILEPATH       = "./config.yaml"
 	GENERIC_ERROR_CODE    = 1
 	FAILED_TO_LOAD_CONFIG = 2
+	MAX_SIGNAL_BUFFER     = 5
 )
 
 var log = logging.MustGetLogger("log")
@@ -103,6 +107,31 @@ func flush_logs() {
 	os.Stderr.Sync()
 }
 
+func start(client *common.Client) {
+	signalChannel := make(chan os.Signal, MAX_SIGNAL_BUFFER)
+	signal.Notify(signalChannel, syscall.SIGTERM, syscall.SIGINT)
+
+	defer signal.Stop(signalChannel)
+	defer flush_logs()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+
+	go func() {
+		client.StartClientLoop(ctx)
+		close(done)
+	}()
+
+	select {
+	case sig := <-signalChannel:
+		log.Infof("action: signal_with_code_%s_received | result: success", sig)
+		cancel() // cancel context so client loop exits immediately
+		<-done   // wait for client loop to complete operations
+	case <-done:
+	}
+}
+
 func main() {
 	v, err := InitConfig()
 	if err != nil {
@@ -126,6 +155,5 @@ func main() {
 
 	client := common.NewClient(clientConfig)
 
-	client.StartClientLoop()
-	flush_logs()
+	start(client)
 }

@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -27,6 +28,8 @@ type Client struct {
 
 const (
 	MESSAGE_DELIMITER = '\n'
+	CONTINUE          = 0
+	STOP              = 1
 )
 
 // NewClient Initializes a new client receiving the configuration
@@ -57,37 +60,55 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop(ctx context.Context) {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		err := c.createClientSocket()
-		if err != nil {
-			continue
-		}
+	result := CONTINUE
 
-		defer c.resourceCleanup()
-
-		err = c.sendMessage(msgID)
-		if err != nil {
+	for msgID := 1; msgID <= c.config.LoopAmount && result == CONTINUE; msgID++ {
+		select {
+		case <-ctx.Done():
+			log.Infof("action: loop_stopped_by_signal | result: success")
 			return
+		default:
+			result = c.runIteration(msgID, ctx)
 		}
-
-		err = c.receiveMessage()
-		if err != nil {
-			return
-		}
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
+func (c *Client) runIteration(msgID int, ctx context.Context) int {
+	// Create the connection the server in every loop iteration. Send an
+	err := c.createClientSocket()
+	if err != nil {
+		return CONTINUE
+	}
+
+	err = c.sendMessage(msgID)
+	if err != nil {
+		return STOP
+	}
+
+	err = c.receiveMessage()
+	if err != nil {
+		return STOP
+	}
+
+	c.resourceCleanup()
+
+	// Wait a time between sending one message and the next one
+	select {
+	case <-ctx.Done():
+		log.Infof("action: loop_stopped_by_signal | result: success")
+		return STOP
+	case <-time.After(c.config.LoopPeriod):
+		return CONTINUE
+	}
+}
+
 func (c *Client) resourceCleanup() error {
-	log.Infof("action: closing_connection | result: success | client_id: %v", c.config.ID)
+	log.Infof("action: closing_socket | result: success | client_id: %v", c.config.ID)
 	return c.conn.Close()
 }
 
