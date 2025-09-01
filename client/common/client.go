@@ -23,6 +23,8 @@ type ClientConfig struct {
 }
 
 // Client Entity that encapsulates how
+// It also handles OS signals (SIGTERM, SIGINT) to gracefully
+// stop execution.
 type Client struct {
 	config        ClientConfig
 	conn          net.Conn
@@ -30,14 +32,22 @@ type Client struct {
 }
 
 const (
+	// MESSAGE_DELIMITER defines the character used to delimit messages.
 	MESSAGE_DELIMITER = '\n'
-	CONTINUE          = 0
-	STOP              = 1
+
+	// CONTINUE indicates that the client loop should continue.
+	CONTINUE = 0
+
+	// STOP indicates that the client loop should stop.
+	STOP = 1
+
+	// MAX_SIGNAL_BUFFER defines the buffer size for the signal channel.
 	MAX_SIGNAL_BUFFER = 5
 )
 
-// NewClient Initializes a new client receiving the configuration
-// as a parameter
+// NewClient creates and initializes a new Client instance using the
+// provided configuration. It also registers the client to listen for
+// SIGTERM and SIGINT signals to allow graceful shutdown.
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config:        config,
@@ -48,9 +58,9 @@ func NewClient(config ClientConfig) *Client {
 	return client
 }
 
-// CreateClientSocket Initializes client socket. In case of
-// failure, error is printed in stdout/stderr and exit 1
-// is returned
+// createClientSocket establishes a TCP connection to the configured
+// server address. If the connection fails, the error is logged and
+// returned. On success, the connection is stored in the client.
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
@@ -66,26 +76,42 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// StartClientLoop Send messages to the client until some time threshold is met
+// StartClientLoop runs the main client loop. It sends messages to the
+// server periodically until either:
+//   - The configured LoopAmount is reached.
+//   - An OS signal (SIGTERM, SIGINT) is received.
+//   - A critical error occurs while sending/receiving messages.
+//
+// Each iteration establishes a new TCP connection, sends a message,
+// waits for a response, and then sleeps for LoopPeriod before the
+// next iteration.
 func (c *Client) StartClientLoop() {
 	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	result := CONTINUE
+	loop := CONTINUE
 	defer signal.Stop(c.signalChannel)
+	defer c.flushLogs()
 
-	for msgID := 1; msgID <= c.config.LoopAmount && result == CONTINUE; msgID++ {
+	for msgID := 1; msgID <= c.config.LoopAmount && loop == CONTINUE; msgID++ {
 		select {
 		case sig := <-c.signalChannel:
 			log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
 			return
 		default:
-			result = c.runIteration(msgID)
+			loop = c.runIteration(msgID)
 		}
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
+// runIteration executes a single client loop iteration:
+//  1. Establishes a TCP connection.
+//  2. Sends a message with the current message ID.
+//  3. Waits for and logs the server response.
+//  4. Sleeps for LoopPeriod before the next iteration.
+//
+// Returns STOP if a critical error occurs or a signal is received,
+// otherwise CONTINUE
 func (c *Client) runIteration(msgID int) int {
 	// Create the connection the server in every loop iteration. Send an
 	err := c.createClientSocket()
@@ -105,21 +131,28 @@ func (c *Client) runIteration(msgID int) int {
 		return STOP
 	}
 
-	// Wait a time between sending one message and the next one
 	select {
 	case sig := <-c.signalChannel:
 		log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
 		return STOP
+	// Wait a time between sending one message and the next one
 	case <-time.After(c.config.LoopPeriod):
 		return CONTINUE
 	}
 }
 
+// resourceCleanup closes the active TCP connection and logs the action.
 func (c *Client) resourceCleanup() error {
 	log.Infof("action: closing_socket | result: success | client_id: %v", c.config.ID)
 	return c.conn.Close()
 }
 
+// sendMessage formats and sends a message to the server with the
+// given message ID. The message format is:
+//
+//	[CLIENT <ID>] Message N°<msgID>\n
+//
+// Returns an error if the message cannot be sent.
 func (c *Client) sendMessage(msgID int) error {
 	msg := fmt.Sprintf("[CLIENT %v] Message N°%v%c", c.config.ID, msgID, MESSAGE_DELIMITER)
 	err := c.sendAll(msg)
@@ -134,6 +167,9 @@ func (c *Client) sendMessage(msgID int) error {
 	return nil
 }
 
+// receiveMessage reads a single message from the server until the
+// MESSAGE_DELIMITER is encountered. Logs the received message or
+// an error if reading fails.
 func (c *Client) receiveMessage() error {
 	msg, err := c.readAll()
 
@@ -152,6 +188,8 @@ func (c *Client) receiveMessage() error {
 	return nil
 }
 
+// sendAll writes the entire message to the TCP connection, retrying
+// until all bytes are sent or an error occurs.
 func (c *Client) sendAll(msg string) error {
 	data := []byte(msg)
 	total := 0
@@ -166,6 +204,15 @@ func (c *Client) sendAll(msg string) error {
 	return nil
 }
 
+// readAll reads from the TCP connection until MESSAGE_DELIMITER is
+// encountered. Returns the message as a string
 func (c *Client) readAll() (string, error) {
 	return bufio.NewReader(c.conn).ReadString(MESSAGE_DELIMITER)
+}
+
+// Flushes any buffered data in stdout and stderr to ensure
+// all logs are written.
+func (c *Client) flushLogs() {
+	os.Stdout.Sync()
+	os.Stderr.Sync()
 }
