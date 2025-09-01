@@ -7,8 +7,6 @@ from common.exceptions.socket_not_initialized_exception import (
     SocketNotInitializedException,
 )
 
-from typing import Optional
-
 
 class Server(Process):
     RAW_MESSAGE_DELIMITER = b"\n"
@@ -19,11 +17,11 @@ class Server(Process):
         super().__init__()
         self._port: str = port
         self._listen_backlog: int = listen_backlog
-        
+
         self._server_socket: Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(("", self._port))
         self._server_socket.listen(self._listen_backlog)
-        
+
         self._logger: Logger = logger
         self._lock: LockType = lock
         self._running: bool = False
@@ -79,7 +77,9 @@ class Server(Process):
 
         finally:
             client_sock.close()
-            self._logger.info("action: client_connection_socket_closed  | result: success")
+            self._logger.info(
+                "action: client_connection_socket_closed  | result: success"
+            )
 
     def __receive_message(self, client_sock: Socket) -> str:
         data: bytes = b""
@@ -122,11 +122,13 @@ class Server(Process):
         with self._lock:
             if self._stopped == True:
                 return
-            
+
             try:
                 self._server_socket.shutdown(socket.SHUT_RDWR)
                 self._server_socket.close()
-                self._logger.info("action: server_welcomming_socket_closed  | result: success")
+                self._logger.info(
+                    "action: server_welcomming_socket_closed  | result: success"
+                )
             except OSError:
                 pass
 

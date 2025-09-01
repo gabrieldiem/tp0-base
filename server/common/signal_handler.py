@@ -5,6 +5,7 @@ from types import FrameType
 from typing import Optional
 from common.logger import LoggerHandler
 
+
 class SignalHandler:
     def __init__(self, server: Server, logger: Logger, loggers_handler: LoggerHandler):
         self._server = server
@@ -13,7 +14,9 @@ class SignalHandler:
 
     def __handle_signal(self, signum: int, _frame: Optional[FrameType]) -> None:
         """Logs the signal number and stops the Server"""
-        self._logger.info(f"action: signal_with_code_{signum}_received | result: success")
+        self._logger.info(
+            f"action: signal_with_code_{signum}_received | result: success"
+        )
         self._server.stop()
         self._logger.info("action: server_shutdown | result: success")
 
