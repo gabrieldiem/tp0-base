@@ -26,6 +26,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
    1. [Sobre el Ejercicio N°1](#Sobre-el-Ejercicio-N1)
    1. [Sobre el Ejercicio N°2](#Sobre-el-Ejercicio-N2)
    1. [Sobre el Ejercicio N°3](#Sobre-el-Ejercicio-N3)
+   1. [Sobre el Ejercicio N°4](#Sobre-el-Ejercicio-N4)
 
 ## Instrucciones de uso
 
@@ -259,3 +260,19 @@ Para ejecutarlo basta con correr el script como ejecutable sin argumentos:
 ```bash
 ./validar-echo-server.sh
 ```
+
+### Sobre el Ejercicio N°4
+
+Inicialmente se hizo un approach overengineered para esta instancia y los problemas a resolver aquí.
+
+- En el **server**: se dejó el signal handling con la clase SignalHandler en el main thread, ya que allí es donde llegan las signals en Python y al server se lo colocó en un proceso distinto, tomando un approach multiprocessing para evitar interrupciones del sistema operativo y que pueda operar con fluidez. Para loggear de manera segura se hizo un logger multiprocess-safe con una Queue de mensajes que era consumida por un listener e imprimía los logs correspondientes.
+
+- En el **cliente**: se agregó el manejo de señales necesario utilizando channels, `for-select` y un contexto que en la siguiente iteración de la implementación resultó innecesario. También se apalancó el uso de la keyword `defer` para asegurar el cierre apropiado del socket.
+
+Tanto en el cliente como en el server las señales manejadas eran `SIGTERM` (pedido por la consigna y enviado por `docker stop` luego del timeout) y `SIGINT` (para tener en cuenta el caso del <kbd>CTRL+C</kbd>).
+
+El enfoque previamente mencionado se descartó parcialmente en una segunda iteración de la solución, con la solución final de la siguiente manera:
+
+- En el **server** el approach anterior generó un delay de arranque que genera constantemente que los primeros clientes no puedan conectarse y lancen un log de error. Se volvió a un modelo single-threaded, donde el logger, el server y los signal handlers están en el main thread. El `SignalHandler` para al server una vez ejecutado.
+
+- En el **cliente**: se pudo simplificar manteniendo la funcionalidad, dejando de lado el uso de `context` y solamente usando channels y signals. Agregando encapsulamiento en `Client` haciendo que este contenga a dicho channel. Se utilizó un `select` antes de comenzar cada iteración para verificar por signals y al momento de ejecutar el sleep se utilizó `time.After` en un `select` con la signal, de esta manera no hace falta finalizar el `sleep` para comenzar el shutdown.
