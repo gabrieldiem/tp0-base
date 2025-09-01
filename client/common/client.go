@@ -64,7 +64,7 @@ func (c *Client) StartClientLoop() {
 		// Create the connection the server in every loop iteration. Send an
 		err := c.createClientSocket()
 		if err != nil {
-			return
+			continue
 		}
 
 		defer c.resourceCleanup()
