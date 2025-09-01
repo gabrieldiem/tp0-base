@@ -3,13 +3,17 @@ from logging import Logger
 from socket import socket as Socket
 from typing import Optional
 
+
 class Server:
     """
-    TCP echo server running in a separate process.
+    TCP echo server.
 
-    The server listens for incoming connections, receives messages
-    terminated by a newline, logs them, and echoes them back to the client.
+    The server listens on a given port, accepts client connections,
+    receives newline-terminated messages, logs them, and echoes them
+    back to the client. It runs in a loop until explicitly stopped,
+    ensuring clean shutdown of sockets and proper logging of events.
     """
+
     RAW_MESSAGE_DELIMITER = b"\n"
     SOCKET_BUFFER_SIZE = 1024
     CHAR_ENCODING = "utf-8"
@@ -24,8 +28,6 @@ class Server:
             Port number to bind the server to.
         listen_backlog : int
             Maximum number of queued connections.
-        lock : LockType
-            Multiprocessing lock to synchronize socket operations.
         logger : Logger
             Logger instance for recording server events.
         """
@@ -43,10 +45,11 @@ class Server:
 
     def run(self) -> None:
         """
-        Main server loop.
+        Start the main server loop.
 
-        Accepts new client connections and handles them one at a time.
-        Stops when the listening socket is closed.
+        Continuously accepts new client connections and handles them
+        one at a time. The loop stops when the server is explicitly
+        stopped or the listening socket is closed.
         """
         self._running = True
         self._logger.info(f"action: starting_loop | result: success")
@@ -56,17 +59,18 @@ class Server:
 
         while self._running:
             client_sock: Optional[Socket] = self.__accept_new_connection()
-            
+
             if not client_sock:
                 break
-            
+
             self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock: Socket) -> None:
         """
         Handle a single client connection.
 
-        Reads a message, logs it, echoes it back, and closes the socket.
+        Reads a message from the client, logs it, echoes it back,
+        and then closes the connection. Errors are logged and exceptions are handled.
         """
         try:
             addr = client_sock.getpeername()
@@ -80,7 +84,7 @@ class Server:
                 self.__send_message(client_sock, msg)
 
         except OSError as e:
-            self._logger.error("action: receive_message | result: fail | error: {e}")
+            self._logger.error(f"action: receive_message | result: fail | error: {e}")
 
         finally:
             self.__shutdown_socket(client_sock)
@@ -90,12 +94,11 @@ class Server:
 
     def __receive_message(self, client_sock: Socket) -> str:
         """
-        Receive a message from the client until a newline delimiter is found.
+        Receive a message from the client.
 
-        Raises
-        ------
-        ConnectionError
-            If the client disconnects before sending a complete message.
+        Reads data from the socket until a newline delimiter is found.
+        Raises a ConnectionError if the client disconnects before
+        sending a complete message.
         """
         data: bytes = b""
         delimiter: bytes = self.RAW_MESSAGE_DELIMITER
@@ -112,17 +115,24 @@ class Server:
 
     def __send_message(self, client_sock: Socket, msg: str) -> None:
         """
-        Send a message back to the client, appending a newline delimiter.
+        Send a message back to the client.
+
+        The message is encoded as UTF-8 and terminated with a newline
+        before being sent.
         """
         raw_encoded_msg: bytes = f"{msg}\n".encode(self.CHAR_ENCODING)
         client_sock.sendall(raw_encoded_msg)
 
     def __accept_new_connection(self) -> Optional[Socket]:
         """
-        Block until a new client connects, then return the client socket.
+        Wait for a new client connection.
+
+        Blocks until a client connects or the listening socket is closed.
+        Returns the client socket on success, or None if the server is
+        shutting down.
         """
         self._logger.info("action: accept_connections | result: in_progress")
-        
+
         try:
             client_socket, addr = self._server_socket.accept()
             self._logger.info(
@@ -134,18 +144,24 @@ class Server:
             self._logger.info(
                 f"action: server_welcomming_socket_shutdown | result: success"
             )
-        
+
         return None
 
     def __shutdown_socket(self, a_socket: Socket):
+        """
+        Shutdown and close a socket.
+
+        Ensures the socket is properly closed to free resources.
+        """
         a_socket.shutdown(socket.SHUT_RDWR)
         a_socket.close()
 
     def stop(self) -> None:
         """
-        Stop the server by shutting down and closing the listening socket.
+        Stop the server.
 
-        Safe to call multiple times; subsequent calls have no effect.
+        Shuts down and closes the listening socket, sets the server
+        state to stopped, and prevents further connections.
         """
         if self._stopped:
             return

@@ -4,7 +4,7 @@ from configparser import ConfigParser
 from common.server import Server
 from common.logger import LoggerHandler
 from common.signal_handler import SignalHandler
-from logging import Logger, ERROR
+from logging import Logger
 import os
 
 
@@ -64,7 +64,7 @@ def main() -> int:
         port: int = config_params["port"]
         listen_backlog: int = config_params["listen_backlog"]
 
-        logger: Logger = LoggerHandler.get_direct_logger(logging_level)
+        logger: Logger = LoggerHandler.get_logger(logging_level)
 
         # Log config parameters at the beginning of the program to verify the configuration
         # of the component
@@ -73,7 +73,7 @@ def main() -> int:
             f"listen_backlog: {listen_backlog} | logging_level: {logging_level}"
         )
 
-        # Initialize server and start server loop
+        # Initialize server
         server: Server = Server(port, listen_backlog, logger)
 
         # Register signal handler
@@ -86,7 +86,7 @@ def main() -> int:
 
     except Exception as e:
         # Get new logger to log error to ensure it isn't corrupted
-        LoggerHandler.get_direct_logger("ERROR").error(
+        LoggerHandler.get_logger("ERROR").error(
             f"action: main | result: fail | error: {e}"
         )
         return GENERIC_ERROR_CODE

@@ -1,97 +1,30 @@
 import logging
-from multiprocessing import Queue
-from logging.handlers import QueueHandler, QueueListener
-from logging import Formatter, StreamHandler, Logger
+from logging import Logger, StreamHandler
 
 
 class LoggerHandler:
     """
-    Provides a multiprocessing-safe logging setup using a queue and listener.
+    Utility for creating loggers with a consistent format.
 
-    Log records are sent to a queue via QueueHandler and consumed by a
-    QueueListener, ensuring logs from multiple processes are handled
-    consistently and without conflicts.
+    Provides a static method to return a logger that writes to stdout
+    with a standard format and log level.
     """
 
-    MAX_LOG_QUEUE_SIZE: int = 10_000
     LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
     LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
     DEFAULT_LOG_LEVEL: int = logging.INFO
 
-    def __init__(self, level: str):
-        """
-        Initialize the logging system with a queue and console handler.
-
-        Parameters
-        ----------
-        level : str
-            Logging level name (e.g., "INFO", "DEBUG"). Defaults to INFO if invalid.
-        """
-        self.log_level_str: str = level
-        self.log_level: int = getattr(logging, self.log_level_str, self.DEFAULT_LOG_LEVEL)
-
-        self._log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
-
-        formatter: Formatter = logging.Formatter(
-            fmt=self.LOG_FORMAT,
-            datefmt=self.LOG_DATETIME_FORMAT,
-        )
-
-        console_handler: StreamHandler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self._listener: QueueListener = QueueListener(self._log_queue, console_handler)
-
-        self._root_logger: Logger = logging.getLogger()
-        self._root_logger.setLevel(self.log_level)
-        
-    def start(self) -> None:
-        """Start the queue listener to process log records."""
-        self._listener.start()
-
-    def stop(self) -> None:
-        """
-        Stop the listener and clean up resources.
-
-        Removes queue handlers, closes the queue, and logs a final
-        shutdown message using a direct logger.
-        """
-        self._listener.stop()
-
-        for handler in list(self._root_logger.handlers):
-            if isinstance(handler, QueueHandler):
-                self._root_logger.removeHandler(handler)
-
-        self._log_queue.close()
-        self._log_queue.join_thread()
-        LoggerHandler.get_direct_logger(self.log_level_str).info("action: logger_queue_resources_closed  | result: success")
-
-    def get_logger(self) -> Logger:
-        """
-        Return a logger configured with a QueueHandler.
-
-        Ensures log records are sent to the multiprocessing queue
-        instead of being written directly.
-        """
-        logger: Logger = logging.getLogger()
-
-        # clear existing handlers
-        logger.handlers = []
-
-        logger.addHandler(QueueHandler(self._log_queue))
-        logger.setLevel(self._root_logger.level)
-        return logger
-
     @staticmethod
-    def get_direct_logger(level: str) -> Logger:
+    def get_logger(level: str) -> Logger:
         """
-        Return a direct logger that bypasses the queue.
+        Return a logger configured with a stream handler, formatter,
+        and the given log level.
 
-        Useful for logging after the queue has been closed, such as
-        during shutdown or error handling.
+        If the level string is invalid, INFO is used by default.
         """
         log_level: int = getattr(logging, level, LoggerHandler.DEFAULT_LOG_LEVEL)
-        logger = logging.getLogger()
-        handler = logging.StreamHandler()
+        logger: Logger = logging.getLogger()
+        handler: StreamHandler = logging.StreamHandler()
         handler.setFormatter(
             logging.Formatter(
                 fmt=LoggerHandler.LOG_FORMAT,

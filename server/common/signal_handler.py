@@ -3,7 +3,6 @@ from logging import Logger
 from common.server import Server
 from types import FrameType
 from typing import Optional
-from common.logger import LoggerHandler
 
 
 class SignalHandler:
@@ -14,7 +13,7 @@ class SignalHandler:
 
     def __init__(self, server: Server, logger: Logger):
         """
-        Create a signal handler bound to a server and logger.
+        Create a SignalHandler bound to a server and logger.
         """
         self._server = server
         self._logger = logger
