@@ -67,38 +67,59 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 
-		msg := fmt.Sprintf("[CLIENT %v] Message N°%v%c", c.config.ID, msgID, MESSAGE_DELIMITER)
-		err = c.sendAll(msg)
+		defer c.resourceCleanup()
+
+		err = c.sendMessage(msgID)
 		if err != nil {
-			log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
 			return err
 		}
 
-		msg, err = c.readAll()
-		c.conn.Close()
-
+		err = c.receiveMessage()
 		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
 			return err
 		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
 
 		// Wait a time between sending one message and the next one
 		time.Sleep(c.config.LoopPeriod)
-
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 
+	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	return nil
+}
+
+func (c *Client) resourceCleanup() error {
+	return c.conn.Close()
+}
+
+func (c *Client) sendMessage(msgID int) error {
+	msg := fmt.Sprintf("[CLIENT %v] Message N°%v%c", c.config.ID, msgID, MESSAGE_DELIMITER)
+	err := c.sendAll(msg)
+	if err != nil {
+		log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) receiveMessage() error {
+	msg, err := c.readAll()
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+		c.config.ID,
+		msg,
+	)
 	return nil
 }
 
