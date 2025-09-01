@@ -126,11 +126,6 @@ func main() {
 
 	client := common.NewClient(clientConfig)
 
-	err = client.StartClientLoop()
-
+	client.StartClientLoop()
 	flush_logs()
-
-	if err != nil {
-		os.Exit(GENERIC_ERROR_CODE)
-	}
 }

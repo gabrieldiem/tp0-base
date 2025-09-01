@@ -57,26 +57,26 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() error {
+func (c *Client) StartClientLoop() {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		// Create the connection the server in every loop iteration. Send an
 		err := c.createClientSocket()
 		if err != nil {
-			return err
+			return
 		}
 
 		defer c.resourceCleanup()
 
 		err = c.sendMessage(msgID)
 		if err != nil {
-			return err
+			return
 		}
 
 		err = c.receiveMessage()
 		if err != nil {
-			return err
+			return
 		}
 
 		// Wait a time between sending one message and the next one
@@ -84,10 +84,10 @@ func (c *Client) StartClientLoop() error {
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
-	return nil
 }
 
 func (c *Client) resourceCleanup() error {
+	log.Infof("action: closing_connection | result: success | client_id: %v", c.config.ID)
 	return c.conn.Close()
 }
 
