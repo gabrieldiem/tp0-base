@@ -4,8 +4,6 @@ from configparser import ConfigParser
 from common.server import Server
 from common.logger import LoggerHandler
 from common.signal_handler import SignalHandler
-from multiprocessing import Lock
-from multiprocessing.synchronize import Lock as LockType
 from logging import Logger, ERROR
 import os
 
@@ -66,10 +64,7 @@ def main() -> int:
         port: int = config_params["port"]
         listen_backlog: int = config_params["listen_backlog"]
 
-        loggers_handler: LoggerHandler = LoggerHandler(level=logging_level)
-        loggers_handler.start()
-
-        logger: Logger = loggers_handler.get_logger()
+        logger: Logger = LoggerHandler.get_direct_logger(logging_level)
 
         # Log config parameters at the beginning of the program to verify the configuration
         # of the component
@@ -79,26 +74,20 @@ def main() -> int:
         )
 
         # Initialize server and start server loop
-        lock: LockType = Lock()
-        server: Server = Server(
-            port, listen_backlog, lock, loggers_handler.get_logger()
-        )
-        server.start()
+        server: Server = Server(port, listen_backlog, logger)
 
         # Register signal handler
         signal_handler: SignalHandler = SignalHandler(server, logger)
         signal_handler.register()
 
-        # Cleanup before exiting
-        server.join()
-        loggers_handler.stop()
+        server.run()
 
         return SUCCESS_CODE
 
     except Exception as e:
         # Get new logger to log error to ensure it isn't corrupted
-        LoggerHandler.get_direct_logger(LOG_FORMAT, LOG_DATETIME_FORMAT, ERROR).error(
-            "action: main | result: fail | error: {e}"
+        LoggerHandler.get_direct_logger("ERROR").error(
+            f"action: main | result: fail | error: {e}"
         )
         return GENERIC_ERROR_CODE
 

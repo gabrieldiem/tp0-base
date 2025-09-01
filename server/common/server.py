@@ -1,11 +1,9 @@
 import socket
-from multiprocessing import Process
-from multiprocessing.synchronize import Lock as LockType
 from logging import Logger
 from socket import socket as Socket
+from typing import Optional
 
-
-class Server(Process):
+class Server:
     """
     TCP echo server running in a separate process.
 
@@ -16,7 +14,7 @@ class Server(Process):
     SOCKET_BUFFER_SIZE = 1024
     CHAR_ENCODING = "utf-8"
 
-    def __init__(self, port: int, listen_backlog: int, lock: LockType, logger: Logger):
+    def __init__(self, port: int, listen_backlog: int, logger: Logger):
         """
         Initialize the server socket and prepare it to accept connections.
 
@@ -40,7 +38,6 @@ class Server(Process):
         self._server_socket.listen(self._listen_backlog)
 
         self._logger: Logger = logger
-        self._lock: LockType = lock
         self._running: bool = False
         self._stopped: bool = False
 
@@ -54,16 +51,15 @@ class Server(Process):
         self._running = True
         self._logger.info(f"action: starting_loop | result: success")
 
-        while True:
-            try:
-                client_sock: Socket = self.__accept_new_connection()
-            except OSError:
-                # Socket was closed -> shutdown
-                self._logger.info(
-                    f"action: server_welcomming_socket_shutdown | result: success"
-                )
-                break
+        if self._stopped:
+            return
 
+        while self._running:
+            client_sock: Optional[Socket] = self.__accept_new_connection()
+            
+            if not client_sock:
+                break
+            
             self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock: Socket) -> None:
@@ -80,13 +76,14 @@ class Server(Process):
                 f"action: receive_message | result: success | ip: {addr[0]} | msg: {msg}"
             )
 
-            self.__send_message(client_sock, msg)
+            if self._running:
+                self.__send_message(client_sock, msg)
 
         except OSError as e:
             self._logger.error("action: receive_message | result: fail | error: {e}")
 
         finally:
-            client_sock.close()
+            self.__shutdown_socket(client_sock)
             self._logger.info(
                 "action: client_connection_socket_closed  | result: success"
             )
@@ -103,9 +100,8 @@ class Server(Process):
         data: bytes = b""
         delimiter: bytes = self.RAW_MESSAGE_DELIMITER
 
-        while delimiter not in data:
-            with self._lock:
-                chunk: bytes = client_sock.recv(self.SOCKET_BUFFER_SIZE)
+        while delimiter not in data and self._running:
+            chunk: bytes = client_sock.recv(self.SOCKET_BUFFER_SIZE)
 
             if not chunk:
                 raise ConnectionError("Client disconnected during reception")
@@ -119,19 +115,31 @@ class Server(Process):
         Send a message back to the client, appending a newline delimiter.
         """
         raw_encoded_msg: bytes = f"{msg}\n".encode(self.CHAR_ENCODING)
-        with self._lock:
-            client_sock.sendall(raw_encoded_msg)
+        client_sock.sendall(raw_encoded_msg)
 
-    def __accept_new_connection(self) -> Socket:
+    def __accept_new_connection(self) -> Optional[Socket]:
         """
         Block until a new client connects, then return the client socket.
         """
         self._logger.info("action: accept_connections | result: in_progress")
-        c, addr = self._server_socket.accept()
-        self._logger.info(
-            f"action: accept_connections | result: success | ip: {addr[0]}"
-        )
-        return c
+        
+        try:
+            client_socket, addr = self._server_socket.accept()
+            self._logger.info(
+                f"action: accept_connections | result: success | ip: {addr[0]}"
+            )
+            return client_socket
+        except OSError:
+            # Socket was closed -> shutdown
+            self._logger.info(
+                f"action: server_welcomming_socket_shutdown | result: success"
+            )
+        
+        return None
+
+    def __shutdown_socket(self, a_socket: Socket):
+        a_socket.shutdown(socket.SHUT_RDWR)
+        a_socket.close()
 
     def stop(self) -> None:
         """
@@ -139,18 +147,11 @@ class Server(Process):
 
         Safe to call multiple times; subsequent calls have no effect.
         """
-        with self._lock:
-            if self._stopped == True:
-                return
+        if self._stopped:
+            return
 
-            try:
-                self._server_socket.shutdown(socket.SHUT_RDWR)
-                self._server_socket.close()
-                self._logger.info(
-                    "action: server_welcomming_socket_closed  | result: success"
-                )
-            except OSError:
-                pass
+        self.__shutdown_socket(self._server_socket)
+        self._logger.info("action: server_welcomming_socket_closed  | result: success")
 
-            self._stopped = True
-            self._running = False
+        self._stopped = True
+        self._running = False

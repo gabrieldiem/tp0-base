@@ -27,7 +27,8 @@ class LoggerHandler:
         level : str
             Logging level name (e.g., "INFO", "DEBUG"). Defaults to INFO if invalid.
         """
-        self.log_level: int = getattr(logging, level, self.DEFAULT_LOG_LEVEL)
+        self.log_level_str: str = level
+        self.log_level: int = getattr(logging, self.log_level_str, self.DEFAULT_LOG_LEVEL)
 
         self._log_queue: Queue = Queue(maxsize=self.MAX_LOG_QUEUE_SIZE)
 
@@ -42,7 +43,7 @@ class LoggerHandler:
 
         self._root_logger: Logger = logging.getLogger()
         self._root_logger.setLevel(self.log_level)
-
+        
     def start(self) -> None:
         """Start the queue listener to process log records."""
         self._listener.start()
@@ -62,9 +63,7 @@ class LoggerHandler:
 
         self._log_queue.close()
         self._log_queue.join_thread()
-        LoggerHandler.get_direct_logger(
-            self.LOG_FORMAT, self.LOG_DATETIME_FORMAT, self.log_level
-        ).info("action: logger_queue_resources_closed  | result: success")
+        LoggerHandler.get_direct_logger(self.log_level_str).info("action: logger_queue_resources_closed  | result: success")
 
     def get_logger(self) -> Logger:
         """
@@ -83,25 +82,22 @@ class LoggerHandler:
         return logger
 
     @staticmethod
-    def get_direct_logger(
-        log_format: str, log_datetime_format: str, log_level: int
-    ) -> Logger:
+    def get_direct_logger(level: str) -> Logger:
         """
         Return a direct logger that bypasses the queue.
 
         Useful for logging after the queue has been closed, such as
         during shutdown or error handling.
         """
+        log_level: int = getattr(logging, level, LoggerHandler.DEFAULT_LOG_LEVEL)
         logger = logging.getLogger()
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(
-                logging.Formatter(
-                    fmt=log_format,
-                    datefmt=log_datetime_format,
-                )
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter(
+                fmt=LoggerHandler.LOG_FORMAT,
+                datefmt=LoggerHandler.LOG_DATETIME_FORMAT,
             )
-            logger.addHandler(handler)
-            logger.setLevel(log_level)
-            logger.propagate = False
+        )
+        logger.addHandler(handler)
+        logger.setLevel(log_level)
         return logger
