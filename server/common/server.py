@@ -3,19 +3,36 @@ from multiprocessing import Process
 from multiprocessing.synchronize import Lock as LockType
 from logging import Logger
 from socket import socket as Socket
-from common.exceptions.socket_not_initialized_exception import (
-    SocketNotInitializedException,
-)
 
 
 class Server(Process):
+    """
+    TCP echo server running in a separate process.
+
+    The server listens for incoming connections, receives messages
+    terminated by a newline, logs them, and echoes them back to the client.
+    """
     RAW_MESSAGE_DELIMITER = b"\n"
     SOCKET_BUFFER_SIZE = 1024
     CHAR_ENCODING = "utf-8"
 
-    def __init__(self, port: str, listen_backlog: int, lock: LockType, logger: Logger):
+    def __init__(self, port: int, listen_backlog: int, lock: LockType, logger: Logger):
+        """
+        Initialize the server socket and prepare it to accept connections.
+
+        Parameters
+        ----------
+        port : int
+            Port number to bind the server to.
+        listen_backlog : int
+            Maximum number of queued connections.
+        lock : LockType
+            Multiprocessing lock to synchronize socket operations.
+        logger : Logger
+            Logger instance for recording server events.
+        """
         super().__init__()
-        self._port: str = port
+        self._port: int = port
         self._listen_backlog: int = listen_backlog
 
         self._server_socket: Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,11 +46,10 @@ class Server(Process):
 
     def run(self) -> None:
         """
-        Dummy Server loop
+        Main server loop.
 
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
+        Accepts new client connections and handles them one at a time.
+        Stops when the listening socket is closed.
         """
         self._running = True
         self._logger.info(f"action: starting_loop | result: success")
@@ -47,20 +63,14 @@ class Server(Process):
                     f"action: server_welcomming_socket_shutdown | result: success"
                 )
                 break
-            except SocketNotInitializedException as e:
-                self._logger.critical(
-                    f"action: accept_connections | result: fail | {e}"
-                )
-                break
 
             self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock: Socket) -> None:
         """
-        Read message from a specific client socket and closes the socket
+        Handle a single client connection.
 
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
+        Reads a message, logs it, echoes it back, and closes the socket.
         """
         try:
             addr = client_sock.getpeername()
@@ -82,6 +92,14 @@ class Server(Process):
             )
 
     def __receive_message(self, client_sock: Socket) -> str:
+        """
+        Receive a message from the client until a newline delimiter is found.
+
+        Raises
+        ------
+        ConnectionError
+            If the client disconnects before sending a complete message.
+        """
         data: bytes = b""
         delimiter: bytes = self.RAW_MESSAGE_DELIMITER
 
@@ -97,19 +115,17 @@ class Server(Process):
         return data.strip().decode(self.CHAR_ENCODING)
 
     def __send_message(self, client_sock: Socket, msg: str) -> None:
+        """
+        Send a message back to the client, appending a newline delimiter.
+        """
         raw_encoded_msg: bytes = f"{msg}\n".encode(self.CHAR_ENCODING)
         with self._lock:
             client_sock.sendall(raw_encoded_msg)
 
     def __accept_new_connection(self) -> Socket:
         """
-        Accept new connections
-
-        Function blocks until a connection to a client is made.
-        Then connection created is printed and returned
+        Block until a new client connects, then return the client socket.
         """
-
-        # Connection arrived
         self._logger.info("action: accept_connections | result: in_progress")
         c, addr = self._server_socket.accept()
         self._logger.info(
@@ -118,7 +134,11 @@ class Server(Process):
         return c
 
     def stop(self) -> None:
-        """Stop the server loop"""
+        """
+        Stop the server by shutting down and closing the listening socket.
+
+        Safe to call multiple times; subsequent calls have no effect.
+        """
         with self._lock:
             if self._stopped == True:
                 return

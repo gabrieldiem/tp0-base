@@ -63,7 +63,7 @@ def main() -> int:
     try:
         config_params: dict = initialize_config()
         logging_level: str = config_params["logging_level"]
-        port: str = config_params["port"]
+        port: int = config_params["port"]
         listen_backlog: int = config_params["listen_backlog"]
 
         loggers_handler: LoggerHandler = LoggerHandler(level=logging_level)
