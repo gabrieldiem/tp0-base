@@ -13,7 +13,7 @@ class SignalHandler:
 
     def __handle_signal(self, signum: int, _frame: Optional[FrameType]) -> None:
         """Logs the signal number and stops the Server"""
-        self._logger.info(f"action: signal_received | signal_number: {signum}")
+        self._logger.info(f"action: signal_received | signal_number: {signum} | result: success")
         self._server.stop()
         self._logger.info("action: server_shutdown | result: success")
 
