@@ -3,19 +3,19 @@ from logging import Logger
 from common.server import Server
 from types import FrameType
 from typing import Optional
-
+from common.logger import LoggerHandler
 
 class SignalHandler:
-    def __init__(self, server: Server, logger: Logger):
+    def __init__(self, server: Server, logger: Logger, loggers_handler: LoggerHandler):
         self._server = server
         self._logger = logger
+        self._loggers_handler = loggers_handler
 
     def __handle_signal(self, signum: int, _frame: Optional[FrameType]) -> None:
         """Logs the signal number and stops the Server"""
         self._logger.info(f"action: signal_received | signal_number: {signum}")
         self._server.stop()
-        self._server.join()
-        self._logger.info("action: shutdown | result: success")
+        self._logger.info("action: server_shutdown | result: success")
 
     def register(self) -> None:
         """Register the handler for SIGINT and SIGTERM"""

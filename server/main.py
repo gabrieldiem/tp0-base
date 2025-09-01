@@ -4,12 +4,17 @@ from configparser import ConfigParser
 from common.server import Server
 from common.logger import LoggerHandler
 from common.signal_handler import SignalHandler
-from logging import Logger
+from multiprocessing import Lock
+from multiprocessing.synchronize import Lock as LockType
+from logging import Logger, ERROR
 import os
 
 
 GENERIC_ERROR_CODE = 1
 SUCCESS_CODE = 0
+
+LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
+LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
 def initialize_config() -> dict:
     """ Parse env variables or config file to find program config params
@@ -59,11 +64,12 @@ def main() -> int:
                     f"listen_backlog: {listen_backlog} | logging_level: {logging_level}")
 
         # Initialize server and start server loop
-        server: Server = Server(port, listen_backlog, loggers_handler.get_logger())
+        lock: LockType = Lock()
+        server: Server = Server(port, listen_backlog, lock, loggers_handler.get_logger())
         server.start()
         
         # Register signal handler
-        signal_handler: SignalHandler = SignalHandler(server, logger)
+        signal_handler: SignalHandler = SignalHandler(server, logger, loggers_handler)
         signal_handler.register()
 
         server.join()
@@ -72,7 +78,7 @@ def main() -> int:
         return SUCCESS_CODE
     
     except Exception as e:
-        print("Exception:", e)
+        LoggerHandler.get_direct_logger(LOG_FORMAT, LOG_DATETIME_FORMAT, ERROR).error("action: main | result: fail | error: {e}")
         return GENERIC_ERROR_CODE
 
 

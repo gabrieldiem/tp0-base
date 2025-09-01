@@ -1,12 +1,13 @@
 import socket
 from multiprocessing import Process
+from multiprocessing.synchronize import Lock as LockType
 from logging import Logger
 from socket import socket as Socket
 from common.exceptions.socket_not_initialized_exception import (
     SocketNotInitializedException,
 )
 
-from typing import Optional, List
+from typing import Optional
 
 
 class Server(Process):
@@ -14,12 +15,19 @@ class Server(Process):
     SOCKET_BUFFER_SIZE = 1024
     CHAR_ENCODING = "utf-8"
 
-    def __init__(self, port: str, listen_backlog: int, logger: Logger):
+    def __init__(self, port: str, listen_backlog: int, lock: LockType, logger: Logger):
         super().__init__()
         self._port: str = port
         self._listen_backlog: int = listen_backlog
-        self._server_socket: Optional[Socket] = None
+        
+        self._server_socket: Socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_socket.bind(("", self._port))
+        self._server_socket.listen(self._listen_backlog)
+        
         self._logger: Logger = logger
+        self._lock: LockType = lock
+        self._running: bool = False
+        self._stopped: bool = False
 
     def run(self) -> None:
         """
@@ -29,10 +37,7 @@ class Server(Process):
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
-        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.bind(("", self._port))
-        self._server_socket.listen(self._listen_backlog)
-
+        self._running = True
         self._logger.info(f"action: starting_loop | result: success")
 
         while True:
@@ -40,6 +45,9 @@ class Server(Process):
                 client_sock: Socket = self.__accept_new_connection()
             except OSError:
                 # Socket was closed -> shutdown
+                self._logger.info(
+                    f"action: server_welcomming_socket_shutdown | result: success"
+                )
                 break
             except SocketNotInitializedException as e:
                 self._logger.critical(
@@ -78,7 +86,8 @@ class Server(Process):
         delimiter: bytes = self.RAW_MESSAGE_DELIMITER
 
         while delimiter not in data:
-            chunk: bytes = client_sock.recv(self.SOCKET_BUFFER_SIZE)
+            with self._lock:
+                chunk: bytes = client_sock.recv(self.SOCKET_BUFFER_SIZE)
 
             if not chunk:
                 raise ConnectionError("Client disconnected during reception")
@@ -89,7 +98,8 @@ class Server(Process):
 
     def __send_message(self, client_sock: Socket, msg: str) -> None:
         raw_encoded_msg: bytes = f"{msg}\n".encode(self.CHAR_ENCODING)
-        client_sock.sendall(raw_encoded_msg)
+        with self._lock:
+            client_sock.sendall(raw_encoded_msg)
 
     def __accept_new_connection(self) -> Socket:
         """
@@ -100,21 +110,25 @@ class Server(Process):
         """
 
         # Connection arrived
-        if self._server_socket:
-            self._logger.info("action: accept_connections | result: in_progress")
-            c, addr = self._server_socket.accept()
-            self._logger.info(
-                f"action: accept_connections | result: success | ip: {addr[0]}"
-            )
-            return c
-
-        raise SocketNotInitializedException
+        self._logger.info("action: accept_connections | result: in_progress")
+        c, addr = self._server_socket.accept()
+        self._logger.info(
+            f"action: accept_connections | result: success | ip: {addr[0]}"
+        )
+        return c
 
     def stop(self) -> None:
         """Stop the server loop"""
-        if self._server_socket:
+        with self._lock:
+            if self._stopped == True:
+                return
+            
             try:
+                self._server_socket.shutdown(socket.SHUT_RDWR)
                 self._server_socket.close()
                 self._logger.info("action: server_welcomming_socket_closed  | result: success")
             except OSError:
                 pass
+
+            self._stopped = True
+            self._running = False
