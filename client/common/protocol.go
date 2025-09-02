@@ -60,12 +60,12 @@ func (p *BetProtocol) expectRegisterBetOk(bet *Bet) (betNumber int, err error) {
 		return BET_NUMBER_FOR_ERRORS, err
 	}
 
-	switch msg.(type) {
+	switch message := msg.(type) {
 	case MsgRegisterBetOk:
-		return int(msg.(MsgRegisterBetOk).number), nil
+		return int(message.number), nil
 	case MsgRegisterBetFailed:
-		return BET_NUMBER_FOR_ERRORS, fmt.Errorf("Recevied MsgRegisterBetFailed")
+		return BET_NUMBER_FOR_ERRORS, fmt.Errorf("recevied MsgRegisterBetFailed")
 	default:
-		return BET_NUMBER_FOR_ERRORS, fmt.Errorf("Received unexpected message")
+		return BET_NUMBER_FOR_ERRORS, fmt.Errorf("received unexpected message")
 	}
 }

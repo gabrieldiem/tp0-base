@@ -1,6 +1,8 @@
 package common
 
 import (
+	"bytes"
+	"encoding/binary"
 	"os"
 	"strconv"
 	"time"
@@ -77,4 +79,33 @@ func (p *EnvBetProvider) HasNextBet() bool {
 		return true
 	}
 	return false
+}
+
+/*
+| len_name (4 bytes) | name (len_name bytes) | len_surname (4 bytes) | surname (len_surname bytes) |
+| DNI (4 bytes) | birthdate (8 bytes) | number (4 bytes) |
+*/
+func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
+	valueBuff := new(bytes.Buffer)
+
+	// Name encoding
+	nameBytes := []byte(b.Name)
+	binary.Write(valueBuff, endianness, uint32(len(nameBytes)))
+	valueBuff.Write(nameBytes)
+
+	// Surname encoding
+	surnameBytes := []byte(b.Surname)
+	binary.Write(valueBuff, endianness, uint32(len(surnameBytes)))
+	valueBuff.Write(surnameBytes)
+
+	// Dni encoding
+	binary.Write(valueBuff, endianness, uint32(b.Dni))
+
+	// Birthdate as Unix timestamp encoding
+	binary.Write(valueBuff, endianness, b.Birthdate.Unix())
+
+	// Number encoding
+	binary.Write(valueBuff, endianness, uint32(b.Number))
+
+	return valueBuff.Bytes()
 }

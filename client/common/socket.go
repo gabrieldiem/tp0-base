@@ -1,10 +1,13 @@
 package common
 
 import (
-	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 )
+
+var NETWORK_ENDIANNESS = binary.BigEndian
 
 const (
 	// MESSAGE_DELIMITER defines the character used to delimit messages.
@@ -41,7 +44,7 @@ func (s *Socket) Cleanup() error {
 }
 
 func (s *Socket) SendMessage(msg Message) error {
-	raw_msg := msg.ToBytes()
+	raw_msg := msg.ToBytes(NETWORK_ENDIANNESS)
 	err := s.sendAll(raw_msg)
 	if err != nil {
 		return err
@@ -50,31 +53,43 @@ func (s *Socket) SendMessage(msg Message) error {
 	return nil
 }
 
+const (
+	SIZEOF_UINT16 = 2
+	SIZEOF_UINT32 = 4
+)
+
 func (s *Socket) ReceiveMessage() (Message, error) {
-	a := bufio.NewReader(s.conn).ReadString(MESSAGE_DELIMITER)
+	// Read msgType
+	header := make([]byte, SIZEOF_UINT16)
+	if _, err := io.ReadFull(s.conn, header); err != nil {
+		return nil, fmt.Errorf("failed to read msgType: %w", err)
+	}
+	msgType := NETWORK_ENDIANNESS.Uint16(header)
 
-	return NewMsgRegisterBetOk(0, 0), nil
-}
+	// Read length
+	lenBuf := make([]byte, SIZEOF_UINT32)
+	if _, err := io.ReadFull(s.conn, lenBuf); err != nil {
+		return nil, fmt.Errorf("failed to read length: %w", err)
+	}
+	length := NETWORK_ENDIANNESS.Uint32(lenBuf)
 
-// receiveMessage reads a single message from the server until the
-// MESSAGE_DELIMITER is encountered. Logs the received message or
-// an error if reading fails.
-func (s *Socket) receiveMessage() error {
-	msg, err := c.readAll()
-
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
+	// Read value
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(s.conn, payload); err != nil {
+		return nil, fmt.Errorf("failed to read payload: %w", err)
 	}
 
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-		c.config.ID,
-		msg,
-	)
-	return nil
+	// Decode based on msgType
+	switch msgType {
+	case MSG_TYPE_REGISTER_BET:
+		return DecodeMsgRegisterBet(payload, NETWORK_ENDIANNESS)
+	case MSG_TYPE_REGISTER_BET_OK:
+		return DecodeMsgRegisterBetOk(payload, NETWORK_ENDIANNESS)
+	case MSG_TYPE_REGISTER_BET_FAILED:
+		return DecodeMsgRegisterBetFailed(payload, NETWORK_ENDIANNESS)
+	default:
+		return nil, fmt.Errorf("unknown message type: %d", msgType)
+	}
 }
 
 // sendAll writes the entire message to the TCP connection, retrying
