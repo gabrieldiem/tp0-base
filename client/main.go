@@ -17,6 +17,7 @@ const (
 	CONFIG_FILEPATH       = "./config.yaml"
 	GENERIC_ERROR_CODE    = 1
 	FAILED_TO_LOAD_CONFIG = 2
+	FAILED_TO_READ_BETS   = 3
 )
 
 var log = logging.MustGetLogger("log")
@@ -117,7 +118,13 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	envBetProvider, err := common.NewEnvBetProvider()
+	if err != nil {
+		log.Criticalf("%s", err)
+		os.Exit(FAILED_TO_READ_BETS)
+	}
+
+	client := common.NewClient(clientConfig, envBetProvider)
 
 	client.StartClientLoop()
 }

@@ -27,6 +27,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
    1. [Sobre el Ejercicio N°2](#Sobre-el-Ejercicio-N2)
    1. [Sobre el Ejercicio N°3](#Sobre-el-Ejercicio-N3)
    1. [Sobre el Ejercicio N°4](#Sobre-el-Ejercicio-N4)
+   1. [Sobre el Ejercicio N°5](#Sobre-el-Ejercicio-N5)
 
 ## Instrucciones de uso
 
@@ -278,3 +279,16 @@ El enfoque previamente mencionado se descartó parcialmente en una segunda itera
 - En el **server** el approach anterior generó un delay de arranque que genera constantemente que los primeros clientes no puedan conectarse y lancen un log de error. Se volvió a un modelo single-threaded, donde el logger, el server y los signal handlers están en el main thread. El `SignalHandler` para al server una vez ejecutado.
 
 - En el **cliente**: se pudo simplificar manteniendo la funcionalidad, dejando de lado el uso de `context` y solamente usando channels y signals. Agregando encapsulamiento en `Client` haciendo que este contenga a dicho channel. Se utilizó un `select` antes de comenzar cada iteración para verificar por signals y al momento de ejecutar el sleep se utilizó `time.After` en un `select` con la signal, de esta manera no hace falta finalizar el `sleep` para comenzar el shutdown.
+
+### Sobre el Ejercicio N°5
+
+#### Protocolo
+
+Cliente: Agencia de quiniela
+Servidor: Central de Lotería Nacional
+
+| Mensaje               | Emisor   | Receptor | Payload                                                                                            | Propósito                                                                                            |
+| --------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **RegisterBet**       | Cliente  | Servidor | `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: str`,<br> `NUMERO: int` | Registrar una apuesta que vincula a un número<br> con una persona en particular                      |
+| **RegisterBetOk**     | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`                                                               | Informar que operación **RegisterBet** fue exitosa.<br> El payload sirve para identificar la apuesta |
+| **RegisterBetFailed** | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`, <br> `ERROR: int`                                                               | Informar que operación **RegisterBet** fue errónea.<br> El payload sirve para identificar la apuesta.<br> Se provee un código de error |

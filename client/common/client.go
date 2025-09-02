@@ -29,6 +29,8 @@ type Client struct {
 	config        ClientConfig
 	conn          net.Conn
 	signalChannel chan os.Signal
+	betProvider   BetProvider
+	protocol      BetProtocol
 }
 
 const (
@@ -48,10 +50,12 @@ const (
 // NewClient creates and initializes a new Client instance using the
 // provided configuration. It also registers the client to listen for
 // SIGTERM and SIGINT signals to allow graceful shutdown.
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, betProvider BetProvider) *Client {
 	client := &Client{
 		config:        config,
 		signalChannel: make(chan os.Signal, MAX_SIGNAL_BUFFER),
+		betProvider:   betProvider,
+		protocol:      NewBetProtocol(),
 	}
 
 	signal.Notify(client.signalChannel, syscall.SIGTERM, syscall.SIGINT)
@@ -91,13 +95,22 @@ func (c *Client) StartClientLoop() {
 	defer signal.Stop(c.signalChannel)
 	defer c.flushLogs()
 
-	for msgID := 1; msgID <= c.config.LoopAmount && loop == CONTINUE; msgID++ {
+	// Create the connection the server in every loop iteration. Send an
+	err := c.createClientSocket()
+	if err != nil {
+		return
+	}
+
+	defer c.resourceCleanup()
+
+	for c.betProvider.HasNextBet() && loop == CONTINUE {
 		select {
 		case sig := <-c.signalChannel:
 			log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
 			return
 		default:
-			loop = c.runIteration(msgID)
+			bet := c.betProvider.NextBet()
+			loop = c.runIteration(&bet)
 		}
 	}
 
@@ -112,33 +125,18 @@ func (c *Client) StartClientLoop() {
 //
 // Returns STOP if a critical error occurs or a signal is received,
 // otherwise CONTINUE
-func (c *Client) runIteration(msgID int) int {
-	// Create the connection the server in every loop iteration. Send an
-	err := c.createClientSocket()
-	if err != nil {
-		return CONTINUE
-	}
-
-	defer c.resourceCleanup()
-
-	err = c.sendMessage(msgID)
+func (c *Client) runIteration(bet *Bet) int {
+	err := c.protocol.registerBet(bet)
 	if err != nil {
 		return STOP
 	}
 
-	err = c.receiveMessage()
+	err = c.protocol.expectRegisterBetOk(bet)
 	if err != nil {
 		return STOP
 	}
 
-	select {
-	case sig := <-c.signalChannel:
-		log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
-		return STOP
-	// Wait a time between sending one message and the next one
-	case <-time.After(c.config.LoopPeriod):
-		return CONTINUE
-	}
+	return CONTINUE
 }
 
 // resourceCleanup closes the active TCP connection and logs the action.
