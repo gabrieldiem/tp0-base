@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -48,14 +49,14 @@ func (p *BetProtocol) Cleanup() error {
 	return nil
 }
 
-func (p *BetProtocol) registerBet(bet *Bet) error {
+func (p *BetProtocol) registerBet(bet *Bet, ctx context.Context) error {
 	msg := NewMsgRegisterBet(*bet)
-	err := p.socket.SendMessage(msg)
+	err := p.socket.SendMessage(msg, ctx)
 	return err
 }
 
-func (p *BetProtocol) expectRegisterBetOk(bet *Bet) (betNumber int, err error) {
-	msg, err := p.socket.ReceiveMessage()
+func (p *BetProtocol) expectRegisterBetOk(ctx context.Context) (betNumber int, err error) {
+	msg, err := p.socket.ReceiveMessage(ctx)
 	if err != nil {
 		return BET_NUMBER_FOR_ERRORS, err
 	}

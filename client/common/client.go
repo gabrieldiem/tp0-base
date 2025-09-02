@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -77,15 +78,18 @@ func (c *Client) StartClientLoop() {
 
 	defer c.resourceCleanup()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		sig := <-c.signalChannel
+		log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
+		cancel()
+	}()
+
 	for c.betProvider.HasNextBet() && loop == CONTINUE {
-		select {
-		case sig := <-c.signalChannel:
-			log.Infof("action: signal_%v_received | result: success | client_id: %v", sig, c.config.ID)
-			return
-		default:
-			bet := c.betProvider.NextBet()
-			loop = c.runIteration(&bet)
-		}
+		bet := c.betProvider.NextBet()
+		loop = c.runIteration(&bet, ctx)
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
@@ -99,14 +103,14 @@ func (c *Client) StartClientLoop() {
 //
 // Returns STOP if a critical error occurs or a signal is received,
 // otherwise CONTINUE
-func (c *Client) runIteration(bet *Bet) int {
-	err := c.protocol.registerBet(bet)
+func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
+	err := c.protocol.registerBet(bet, ctx)
 	if err != nil {
 		log.Criticalf("action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
 	}
 
-	betNumber, err := c.protocol.expectRegisterBetOk(bet)
+	betNumber, err := c.protocol.expectRegisterBetOk(ctx)
 	if err != nil {
 		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
