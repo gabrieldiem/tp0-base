@@ -1,9 +1,6 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,16 +24,12 @@ type ClientConfig struct {
 // stop execution.
 type Client struct {
 	config        ClientConfig
-	conn          net.Conn
 	signalChannel chan os.Signal
 	betProvider   BetProvider
 	protocol      BetProtocol
 }
 
 const (
-	// MESSAGE_DELIMITER defines the character used to delimit messages.
-	MESSAGE_DELIMITER = '\n'
-
 	// CONTINUE indicates that the client loop should continue.
 	CONTINUE = 0
 
@@ -55,29 +48,11 @@ func NewClient(config ClientConfig, betProvider BetProvider) *Client {
 		config:        config,
 		signalChannel: make(chan os.Signal, MAX_SIGNAL_BUFFER),
 		betProvider:   betProvider,
-		protocol:      NewBetProtocol(),
+		protocol:      NewBetProtocol(config.ServerAddress, config.ID),
 	}
 
 	signal.Notify(client.signalChannel, syscall.SIGTERM, syscall.SIGINT)
 	return client
-}
-
-// createClientSocket establishes a TCP connection to the configured
-// server address. If the connection fails, the error is logged and
-// returned. On success, the connection is stored in the client.
-func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
-	if err != nil {
-		log.Criticalf(
-			"action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-
-	c.conn = conn
-	return nil
 }
 
 // StartClientLoop runs the main client loop. It sends messages to the
@@ -95,8 +70,7 @@ func (c *Client) StartClientLoop() {
 	defer signal.Stop(c.signalChannel)
 	defer c.flushLogs()
 
-	// Create the connection the server in every loop iteration. Send an
-	err := c.createClientSocket()
+	err := c.protocol.Init()
 	if err != nil {
 		return
 	}
@@ -128,12 +102,18 @@ func (c *Client) StartClientLoop() {
 func (c *Client) runIteration(bet *Bet) int {
 	err := c.protocol.registerBet(bet)
 	if err != nil {
+		log.Criticalf("action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
 	}
 
-	err = c.protocol.expectRegisterBetOk(bet)
+	betNumber, err := c.protocol.expectRegisterBetOk(bet)
 	if err != nil {
+		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
+	}
+
+	if bet.Number != betNumber {
+		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: confirmation is for different number", bet.Dni, bet.Number)
 	}
 
 	return CONTINUE
@@ -141,71 +121,7 @@ func (c *Client) runIteration(bet *Bet) int {
 
 // resourceCleanup closes the active TCP connection and logs the action.
 func (c *Client) resourceCleanup() error {
-	log.Infof("action: closing_socket | result: success | client_id: %v", c.config.ID)
-	return c.conn.Close()
-}
-
-// sendMessage formats and sends a message to the server with the
-// given message ID. The message format is:
-//
-//	[CLIENT <ID>] Message N°<msgID>\n
-//
-// Returns an error if the message cannot be sent.
-func (c *Client) sendMessage(msgID int) error {
-	msg := fmt.Sprintf("[CLIENT %v] Message N°%v%c", c.config.ID, msgID, MESSAGE_DELIMITER)
-	err := c.sendAll(msg)
-	if err != nil {
-		log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-
-	return nil
-}
-
-// receiveMessage reads a single message from the server until the
-// MESSAGE_DELIMITER is encountered. Logs the received message or
-// an error if reading fails.
-func (c *Client) receiveMessage() error {
-	msg, err := c.readAll()
-
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-		c.config.ID,
-		msg,
-	)
-	return nil
-}
-
-// sendAll writes the entire message to the TCP connection, retrying
-// until all bytes are sent or an error occurs.
-func (c *Client) sendAll(msg string) error {
-	data := []byte(msg)
-	total := 0
-
-	for total < len(data) {
-		n, err := c.conn.Write(data[total:])
-		if err != nil {
-			return fmt.Errorf("failed to write to connection: %w", err)
-		}
-		total += n
-	}
-	return nil
-}
-
-// readAll reads from the TCP connection until MESSAGE_DELIMITER is
-// encountered. Returns the message as a string
-func (c *Client) readAll() (string, error) {
-	return bufio.NewReader(c.conn).ReadString(MESSAGE_DELIMITER)
+	return c.protocol.Cleanup()
 }
 
 // Flushes any buffered data in stdout and stderr to ensure
