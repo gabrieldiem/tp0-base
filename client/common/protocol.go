@@ -51,6 +51,7 @@ func (p *BetProtocol) Cleanup() error {
 
 func (p *BetProtocol) registerBet(bet *Bet, ctx context.Context) error {
 	msg := NewMsgRegisterBet(*bet)
+	log.Infof("action: registering_bet | result: in_progress | bet: %v", bet)
 	err := p.socket.SendMessage(msg, ctx)
 	return err
 }

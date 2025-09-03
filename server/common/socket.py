@@ -9,7 +9,10 @@ from common.messages import (
     MsgRegisterBet,
     MsgRegisterBetOk,
     MsgRegisterBetFailed,
+    SIZEOF_UINT16,
+    SIZEOF_UINT64,
 )
+
 
 class Socket:
     NETWORK_ENDIANNESS = "big"
@@ -38,20 +41,23 @@ class Socket:
         return addr, Socket.from_existing(client_socket)
 
     def send_message(self, msg: Message) -> None:
-      raw_message = msg.to_bytes(Socket.CHAR_ENCODING, Socket.NETWORK_ENDIANNESS)
-      self._socket.sendall(raw_message)
+        raw_message = msg.to_bytes(Socket.CHAR_ENCODING, Socket.NETWORK_ENDIANNESS)
+        self._socket.sendall(raw_message)
 
     def receive_message(self) -> Message:
         return self.__decode_message()
 
     def __decode_message(self) -> Message:
         # Read header
-        header = self._socket.recv(6)
-        if len(header) < 6:
+        sizeof_header = SIZEOF_UINT16 + SIZEOF_UINT64
+        header = self._socket.recv(sizeof_header)
+        if len(header) < sizeof_header:
             raise ConnectionError("Incomplete header")
 
-        msg_type = int.from_bytes(header[0:2], Socket.NETWORK_ENDIANNESS)
-        length = int.from_bytes(header[2:6], Socket.NETWORK_ENDIANNESS)
+        msg_type = int.from_bytes(header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS)
+        length = int.from_bytes(
+            header[SIZEOF_UINT16:sizeof_header], Socket.NETWORK_ENDIANNESS
+        )
 
         # Read payload
         payload = b""
@@ -75,13 +81,17 @@ class Socket:
         offset = 0
 
         # Name
-        name_len = int.from_bytes(payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS)
+        name_len = int.from_bytes(
+            payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS
+        )
         offset += 4
         name = payload[offset : offset + name_len].decode("utf-8")
         offset += name_len
 
         # Surname
-        surname_len = int.from_bytes(payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS)
+        surname_len = int.from_bytes(
+            payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS
+        )
         offset += 4
         surname = payload[offset : offset + surname_len].decode("utf-8")
         offset += surname_len
@@ -110,5 +120,5 @@ class Socket:
     def __decode_register_bet_failed(self, payload: bytes) -> MsgRegisterBetFailed:
         dni = int.from_bytes(payload[0:4], Socket.NETWORK_ENDIANNESS)
         number = int.from_bytes(payload[4:8], Socket.NETWORK_ENDIANNESS)
-        error_code = int.from_bytes(payload[8:10],Socket.NETWORK_ENDIANNESS)
+        error_code = int.from_bytes(payload[8:10], Socket.NETWORK_ENDIANNESS)
         return MsgRegisterBetFailed(dni, number, error_code)

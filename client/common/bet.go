@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -108,4 +109,11 @@ func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
 	binary.Write(valueBuff, endianness, uint32(b.Number))
 
 	return valueBuff.Bytes()
+}
+
+func (b Bet) String() string {
+	return fmt.Sprintf(
+		"Bet(Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",
+		b.Name, b.Surname, b.Dni, b.Birthdate.Format(BIRTHDATE_FORMAT), b.Number,
+	)
 }
