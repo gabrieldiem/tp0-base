@@ -120,7 +120,7 @@ func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
 		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: confirmation is for different number expected %v but got %v", bet.Number, betNumber)
 	}
 
-	log.Infof("action: confirmacion_apuesta_enviada | result: sucess | dni: %v | numero: %v")
+	log.Infof("action: confirmacion_apuesta_enviada | result: success | dni: %v | numero: %v")
 
 	return CONTINUE
 }
