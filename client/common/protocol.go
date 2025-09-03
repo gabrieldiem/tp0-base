@@ -17,6 +17,9 @@ const (
 	// BET_NUMBER_FOR_ERRORS is returned when an error occurs
 	// while waiting for a bet confirmation.
 	BET_NUMBER_FOR_ERRORS = -1
+
+	KILO_BYTE           = 1024
+	MAX_BETS_BATCH_SIZE = 8 * KILO_BYTE
 )
 
 // NewBetProtocol creates a new BetProtocol with the given server address and client id.
@@ -56,32 +59,53 @@ func (p *BetProtocol) Cleanup() error {
 	return nil
 }
 
-// registerBet sends a bet to the server using the socket.
-// It logs the action and returns any error from the socket.
-func (p *BetProtocol) registerBet(bet *Bet, ctx context.Context) error {
-	msg := NewMsgRegisterBet(*bet)
-	log.Infof("action: registering_bet | result: in_progress | bet: %v", bet)
+func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.Context) error {
+	msg := NewMsgRegisterBets(*bets)
+
+	packetSizeKB := float64(betsBatchSize+GetOverheadInBytes(len(*bets)+1)) / float64(KILO_BYTE)
+
+	log.Infof(
+		"action: registering_bet | result: in_progress | number_of_bets: %v | packet_size: %.2fKB",
+		len(*bets),
+		packetSizeKB,
+	)
+
 	err := p.socket.SendMessage(msg, ctx)
 	return err
+}
+
+// CanGroupBet checks if adding `bet` to the current batch of bets
+// would keep the total binary size under 8KB.
+func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int) bool {
+	newBetSize := len(bet.ToBytes(NETWORK_ENDIANNESS))
+	newTotalSize := *betsBatchSize + newBetSize + GetOverheadInBytes(numberOfBets+1)
+
+	canGroup := newTotalSize <= MAX_BETS_BATCH_SIZE
+
+	if canGroup {
+		*betsBatchSize += newBetSize
+	}
+
+	return canGroup
 }
 
 // expectRegisterBetOk waits for a response from the server.
 // It returns the confirmed bet number if a MsgRegisterBetOk is received.
 // If a MsgRegisterBetFailed or an unexpected message is received,
 // it returns BET_NUMBER_FOR_ERRORS and an error.
-func (p *BetProtocol) expectRegisterBetOk(ctx context.Context) (betNumber int, err error) {
+func (p *BetProtocol) ExpectRegisterBetOk(ctx context.Context) error {
 	msg, err := p.socket.ReceiveMessage(ctx)
 
 	if err != nil {
-		return BET_NUMBER_FOR_ERRORS, err
+		return err
 	}
 
-	switch message := msg.(type) {
+	switch msg.(type) {
 	case MsgRegisterBetOk:
-		return int(message.number), nil
+		return nil
 	case MsgRegisterBetFailed:
-		return int(message.number), fmt.Errorf("recevied MsgRegisterBetFailed")
+		return fmt.Errorf("recevied MsgRegisterBetFailed")
 	default:
-		return BET_NUMBER_FOR_ERRORS, fmt.Errorf("received unexpected message")
+		return fmt.Errorf("received unexpected message")
 	}
 }

@@ -78,6 +78,9 @@ func (c *Client) StartClientLoop() {
 		cancel()
 	}()
 
+	var bets []Bet
+	var betsBatchSize int = 0
+
 	for c.betProvider.HasNextBet() && loop == CONTINUE {
 		bet, err := c.betProvider.NextBet()
 
@@ -86,7 +89,7 @@ func (c *Client) StartClientLoop() {
 			return
 		}
 
-		loop = c.runIteration(bet, ctx)
+		loop = c.runIteration(&bets, &betsBatchSize, bet, ctx)
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
@@ -94,14 +97,19 @@ func (c *Client) StartClientLoop() {
 
 // runIteration sends a bet, waits for a response, and logs the result.
 // It returns STOP if an error occurs, otherwise CONTINUE.
-func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
-	err := c.protocol.registerBet(bet, ctx)
+func (c *Client) runIteration(bets *[]Bet, betsBatchSize *int, bet *Bet, ctx context.Context) int {
+	if c.protocol.CanGroupBet(len(*bets), bet, betsBatchSize) {
+		*bets = append(*bets, *bet)
+		return CONTINUE
+	}
+
+	err := c.protocol.RegisterBets(bets, *betsBatchSize, ctx)
 	if err != nil {
 		log.Criticalf("action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
 	}
 
-	betNumber, err := c.protocol.expectRegisterBetOk(ctx)
+	err = c.protocol.ExpectRegisterBetOk(ctx)
 	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
 		return STOP
@@ -109,18 +117,6 @@ func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
 
 	if ctx.Err() != nil {
 		return STOP
-	}
-
-	if bet.Number != betNumber {
-		log.Criticalf(
-			"action: confirmacion_apuesta_enviada | "+
-				"result: fail | "+
-				"dni: %v | "+
-				"numero: %v | "+
-				"error: confirmation is for different number expected %v but got %v",
-			bet.Dni, bet.Number, bet.Number, betNumber,
-		)
-		return CONTINUE
 	}
 
 	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Dni, bet.Number)

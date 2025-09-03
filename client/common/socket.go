@@ -16,6 +16,7 @@ const (
 
 	SIZEOF_UINT16 = 2
 	SIZEOF_UINT32 = 4
+	SIZEOF_INT64  = 8
 )
 
 // Socket wraps a TCP connection and provides methods for
@@ -94,11 +95,8 @@ func NewDecodeResult(msg Message, err error) DecodeResult {
 // based on the given msgType and sends the result to the channel.
 func (s *Socket) decodeMessage(msgType uint16, payload []byte) DecodeResult {
 	switch msgType {
-	case MSG_TYPE_REGISTER_BET:
-		m, err := DecodeMsgRegisterBet(payload, NETWORK_ENDIANNESS)
-		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_OK:
-		m, err := DecodeMsgRegisterBetOk(payload, NETWORK_ENDIANNESS)
+		m, err := DecodeMsgRegisterBetOk(NETWORK_ENDIANNESS)
 		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_FAILED:
 		m, err := DecodeMsgRegisterBetFailed(payload, NETWORK_ENDIANNESS)
