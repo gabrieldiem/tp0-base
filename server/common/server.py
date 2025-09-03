@@ -96,16 +96,23 @@ class Server:
         if isinstance(msg, MsgRegisterBet):
             message: MsgRegisterBet = msg
             bet: Bet = message.get_bet()
-            
+
             store_bets([bet])
-            
+
             self._protocol.send_register_bet_ok(
                 client_sock, message.dni, message.number
             )
+
+            self._logger.info(
+                f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}"
+            )
+
         else:
             self._protocol.send_register_bet_failed(
                 client_sock, UNKNOWN_BET_INFO, UNKNOWN_BET_INFO, FAILURE_UNKNOWN_MESSAGE
             )
+
+            self._logger.error(f"action: mensaje_desconocido | result: fail")
 
     def stop(self) -> None:
         """
