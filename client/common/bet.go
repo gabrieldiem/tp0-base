@@ -19,6 +19,7 @@ const (
 	BIRTHDATE_FORMAT = "2006-01-02"
 )
 
+// Bet represents a bet with identifying information.
 type Bet struct {
 	Agency    int
 	Name      string
@@ -28,6 +29,7 @@ type Bet struct {
 	Number    int
 }
 
+// NewBet creates a new Bet with the given values.
 func NewBet(agency int, name, surname string, dni int, birthdate time.Time, number int) Bet {
 	return Bet{
 		Agency:    agency,
@@ -39,16 +41,28 @@ func NewBet(agency int, name, surname string, dni int, birthdate time.Time, numb
 	}
 }
 
+// BetProvider defines an interface for providing bets.
 type BetProvider interface {
 	NextBet() Bet
 	HasNextBet() bool
 }
 
+// EnvBetProvider provides a single Bet from environment variables.
 type EnvBetProvider struct {
 	bet     Bet
 	hasNext bool
 }
 
+// NewEnvBetProvider creates a new EnvBetProvider.
+//
+// It reads values from environment variables:
+//   - NOMBRE
+//   - APELLIDO
+//   - DOCUMENTO
+//   - NACIMIENTO (YYYY-MM-DD)
+//   - NUMERO
+//
+// Returns an EnvBetProvider containing one Bet
 func NewEnvBetProvider(agencyId int) (*EnvBetProvider, error) {
 	dniStr := os.Getenv(DNI_ENV_KEY)
 	dni, err := strconv.Atoi(dniStr)
@@ -76,10 +90,12 @@ func NewEnvBetProvider(agencyId int) (*EnvBetProvider, error) {
 	}, nil
 }
 
+// NextBet returns the stored Bet.
 func (p *EnvBetProvider) NextBet() Bet {
 	return p.bet
 }
 
+// HasNextBet returns true the first time it is called, then false.
 func (p *EnvBetProvider) HasNextBet() bool {
 	if p.hasNext {
 		p.hasNext = false
@@ -89,8 +105,14 @@ func (p *EnvBetProvider) HasNextBet() bool {
 }
 
 /*
-| len_name (4 bytes) | name (len_name bytes) | len_surname (4 bytes) | surname (len_surname bytes) |
-| DNI (4 bytes) | birthdate (8 bytes) | number (4 bytes) |
+ToBytes serializes a Bet into binary format:
+
+| agency (4 bytes) |
+| name_len (4 bytes) | name (name_len bytes) |
+| surname_len (4 bytes) | surname (surname_len bytes) |
+| dni (4 bytes) |
+| birthdate (8 bytes, Unix timestamp) |
+| number (4 bytes) |
 */
 func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
 	valueBuff := new(bytes.Buffer)
@@ -119,6 +141,7 @@ func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
 	return valueBuff.Bytes()
 }
 
+// String returns a string representation of the Bet.
 func (b Bet) String() string {
 	return fmt.Sprintf(
 		"Bet(Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",

@@ -12,21 +12,26 @@ const (
 	MSG_TYPE_REGISTER_BET_FAILED = 3
 )
 
+// Message is the interface implemented by all protocol messages.
+// Each message must be able to serialize itself into bytes.
 type Message interface {
 	ToBytes(endianness binary.ByteOrder) []byte
 }
 
+// MsgRegisterBet represents a message to register a bet.
 type MsgRegisterBet struct {
 	msgType       uint16
 	betToRegister Bet
 }
 
+// MsgRegisterBetOk represents a message confirming a bet was registered.
 type MsgRegisterBetOk struct {
 	msgType uint16
 	dni     uint32
 	number  uint32
 }
 
+// MsgRegisterBetFailed represents a message indicating a bet registration failed.
 type MsgRegisterBetFailed struct {
 	msgType    uint16
 	dni        uint32
@@ -34,6 +39,7 @@ type MsgRegisterBetFailed struct {
 	error_code uint16
 }
 
+// NewMsgRegisterBet creates a new MsgRegisterBet with the given bet.
 func NewMsgRegisterBet(bet Bet) MsgRegisterBet {
 	return MsgRegisterBet{
 		msgType:       MSG_TYPE_REGISTER_BET,
@@ -41,6 +47,7 @@ func NewMsgRegisterBet(bet Bet) MsgRegisterBet {
 	}
 }
 
+// NewMsgRegisterBetOk creates a new MsgRegisterBetOk with the given dni and number.
 func NewMsgRegisterBetOk(dni, number uint32) MsgRegisterBetOk {
 	return MsgRegisterBetOk{
 		msgType: MSG_TYPE_REGISTER_BET_OK,
@@ -49,6 +56,7 @@ func NewMsgRegisterBetOk(dni, number uint32) MsgRegisterBetOk {
 	}
 }
 
+// NewMsgRegisterBetFailed creates a new MsgRegisterBetFailed with the given values.
 func NewMsgRegisterBetFailed(dni, number uint32, error_code uint16) MsgRegisterBetFailed {
 	return MsgRegisterBetFailed{
 		msgType:    MSG_TYPE_REGISTER_BET_FAILED,
@@ -59,7 +67,9 @@ func NewMsgRegisterBetFailed(dni, number uint32, error_code uint16) MsgRegisterB
 }
 
 /*
-| msg_type (2 bytes) | bet_len (8 bytes) | bet (bet_len bytes)
+ToBytes serializes MsgRegisterBet into binary format:
+
+| msg_type (2 bytes) | bet_len (8 bytes) | bet (bet_len bytes) |
 */
 func (msg MsgRegisterBet) ToBytes(endianness binary.ByteOrder) []byte {
 	buf := new(bytes.Buffer)
@@ -78,6 +88,8 @@ func (msg MsgRegisterBet) ToBytes(endianness binary.ByteOrder) []byte {
 	return buf.Bytes()
 }
 
+// ToBytes serializes MsgRegisterBetOk into binary format:
+// | msg_type (2 bytes) | dni (4 bytes) | number (4 bytes) |
 func (msg MsgRegisterBetOk) ToBytes(endianness binary.ByteOrder) []byte {
 	buf := new(bytes.Buffer)
 
@@ -88,6 +100,8 @@ func (msg MsgRegisterBetOk) ToBytes(endianness binary.ByteOrder) []byte {
 	return buf.Bytes()
 }
 
+// ToBytes serializes MsgRegisterBetFailed into binary format:
+// | msg_type (2 bytes) | dni (4 bytes) | number (4 bytes) | error_code (2 bytes) |
 func (msg MsgRegisterBetFailed) ToBytes(endianness binary.ByteOrder) []byte {
 	buf := new(bytes.Buffer)
 
@@ -99,6 +113,7 @@ func (msg MsgRegisterBetFailed) ToBytes(endianness binary.ByteOrder) []byte {
 	return buf.Bytes()
 }
 
+// DecodeMsgRegisterBet deserializes a MsgRegisterBet from payload bytes.
 func DecodeMsgRegisterBet(payload []byte, endianness binary.ByteOrder) (Message, error) {
 	buf := bytes.NewReader(payload)
 
@@ -141,6 +156,7 @@ func DecodeMsgRegisterBet(payload []byte, endianness binary.ByteOrder) (Message,
 	}, nil
 }
 
+// DecodeMsgRegisterBetOk deserializes a MsgRegisterBetOk from payload bytes.
 func DecodeMsgRegisterBetOk(payload []byte, endianness binary.ByteOrder) (Message, error) {
 	buf := bytes.NewReader(payload)
 
@@ -157,6 +173,7 @@ func DecodeMsgRegisterBetOk(payload []byte, endianness binary.ByteOrder) (Messag
 	}, nil
 }
 
+// DecodeMsgRegisterBetFailed deserializes a MsgRegisterBetFailed from payload bytes.
 func DecodeMsgRegisterBetFailed(payload []byte, endianness binary.ByteOrder) (Message, error) {
 	buf := bytes.NewReader(payload)
 

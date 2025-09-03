@@ -20,9 +20,8 @@ type ClientConfig struct {
 	LoopPeriod    time.Duration
 }
 
-// Client Entity that encapsulates how
-// It also handles OS signals (SIGTERM, SIGINT) to gracefully
-// stop execution.
+// Client manages sending bets to a server and receiving responses.
+// It also listens for OS signals (SIGTERM, SIGINT) to stop execution..
 type Client struct {
 	config        ClientConfig
 	signalChannel chan os.Signal
@@ -37,13 +36,12 @@ const (
 	// STOP indicates that the client loop should stop.
 	STOP = 1
 
-	// MAX_SIGNAL_BUFFER defines the buffer size for the signal channel.
+	// MAX_SIGNAL_BUFFER is the buffer size for the signal channel.
 	MAX_SIGNAL_BUFFER = 5
 )
 
-// NewClient creates and initializes a new Client instance using the
-// provided configuration. It also registers the client to listen for
-// SIGTERM and SIGINT signals to allow graceful shutdown.
+// NewClient creates a Client with the given configuration and bet provider.
+// It registers the client to listen for SIGTERM and SIGINT.
 func NewClient(config ClientConfig, betProvider BetProvider) *Client {
 	client := &Client{
 		config:        config,
@@ -56,17 +54,10 @@ func NewClient(config ClientConfig, betProvider BetProvider) *Client {
 	return client
 }
 
-// StartClientLoop runs the main client loop. It sends messages to the
-// server periodically until either:
-//   - The configured LoopAmount is reached.
-//   - An OS signal (SIGTERM, SIGINT) is received.
-//   - A critical error occurs while sending/receiving messages.
-//
-// Each iteration establishes a new TCP connection, sends a message,
-// waits for a response, and then sleeps for LoopPeriod before the
-// next iteration.
+// StartClientLoop runs the client loop.
+// It initializes the protocol, sets up signal handling, and runs
+// iterations while there are bets available and no stop condition.
 func (c *Client) StartClientLoop() {
-	// There is an autoincremental msgID to identify every message sent
 	loop := CONTINUE
 	defer signal.Stop(c.signalChannel)
 	defer c.flushLogs()
@@ -95,14 +86,8 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-// runIteration executes a single client loop iteration:
-//  1. Establishes a TCP connection.
-//  2. Sends a message with the current message ID.
-//  3. Waits for and logs the server response.
-//  4. Sleeps for LoopPeriod before the next iteration.
-//
-// Returns STOP if a critical error occurs or a signal is received,
-// otherwise CONTINUE
+// runIteration sends a bet, waits for a response, and logs the result.
+// It returns STOP if an error occurs, otherwise CONTINUE.
 func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
 	err := c.protocol.registerBet(bet, ctx)
 	if err != nil {
