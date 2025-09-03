@@ -18,7 +18,22 @@ from typing import Literal
 
 
 class Message:
-    # character_encoding "utf-8"
+    """
+    Abstract base class for all protocol messages.
+
+    Each message must implement `to_bytes()` to serialize itself into
+    the binary TLV format:
+
+        [2 bytes msg_type][4 bytes payload_length][payload...]
+
+    Parameters
+    ----------
+    character_encoding : str
+        Encoding used for string fields (e.g. "utf-8").
+    endianness : Literal["big", "little"]
+        Byte order for integer encoding.
+    """
+
     def to_bytes(
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
@@ -26,6 +41,33 @@ class Message:
 
 
 class MsgRegisterBet(Message):
+    """
+    Client → Server message: request to register a new bet.
+
+    Payload format:
+        [4 bytes agency]
+        [4 bytes name_length][name_bytes]
+        [4 bytes surname_length][surname_bytes]
+        [4 bytes dni]
+        [8 bytes birthdate_unix_timestamp]
+        [4 bytes number]
+
+    Attributes
+    ----------
+    _agency : int
+        Agency identifier.
+    _name : str
+        First name of the bettor.
+    _surname : str
+        Last name of the bettor.
+    _dni : int
+        DNI.
+    _birthdate : int
+        Birthdate as a Unix timestamp (seconds since epoch).
+    _number : int
+        Bet number.
+    """
+
     def __init__(
         self,
         agency: int,
@@ -40,12 +82,15 @@ class MsgRegisterBet(Message):
         self._name = name
         self._surname = surname
         self._dni = dni
-        self._birthdate = birthdate  # unix timestamp
+        self._birthdate = birthdate
         self._number = number
 
     def to_bytes(
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
+        """
+        Serialize the message into TLV binary format.
+        """
         payload: bytes = b""
 
         # Agency
@@ -98,8 +143,14 @@ class MsgRegisterBet(Message):
         return header + payload
 
     def get_bet(self) -> Bet:
-        """Convert MsgRegisterBet into a Bet domain object."""
-        # Convert Unix timestamp → ISO date string
+        """
+        Convert this message into a domain `Bet` object.
+
+        Returns
+        -------
+        Bet
+            A domain-level Bet with proper types (date, strings, ints).
+        """
         birthdate_str: str = date.fromtimestamp(self._birthdate).isoformat()
 
         return Bet(
@@ -119,6 +170,21 @@ class MsgRegisterBet(Message):
 
 
 class MsgRegisterBetOk(Message):
+    """
+    Server → Client message: bet successfully registered.
+
+    Payload format:
+        [4 bytes dni]
+        [4 bytes number]
+
+    Attributes
+    ----------
+    _dni : int
+        DNI of the bettor.
+    _number : int
+        Bet number confirmed by the server.
+    """
+
     def __init__(self, dni: int, number: int):
         self._msg_type = MSG_TYPE_REGISTER_BET_OK
         self._dni = dni
@@ -127,6 +193,9 @@ class MsgRegisterBetOk(Message):
     def to_bytes(
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
+        """
+        Serialize the message into TLV binary format.
+        """
         payload: bytes = b""
         payload += int(self._dni).to_bytes(
             SIZEOF_UINT32,
@@ -152,6 +221,24 @@ class MsgRegisterBetOk(Message):
 
 
 class MsgRegisterBetFailed(Message):
+    """
+    Server → Client message: bet registration failed.
+
+    Payload format:
+        [4 bytes dni]
+        [4 bytes number]
+        [2 bytes error_code]
+
+    Attributes
+    ----------
+    _dni : int
+        DNI of the bettor. May be invalid depending on the error
+    _number : int
+        Bet number attempted. May be invalid depending on the error
+    _error_code : int
+        Error code indicating reason for failure.
+    """
+
     def __init__(self, dni: int, number: int, error_code: int):
         self._msg_type = MSG_TYPE_REGISTER_BET_FAILED
         self._dni = dni
@@ -161,6 +248,9 @@ class MsgRegisterBetFailed(Message):
     def to_bytes(
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
+        """
+        Serialize the message into TLV binary format.
+        """
         payload: bytes = b""
         payload += int(self._dni).to_bytes(
             SIZEOF_UINT32,

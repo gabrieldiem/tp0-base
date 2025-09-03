@@ -14,17 +14,22 @@ from common.messages import (
 
 class Server:
     """
-    TCP echo server.
+    TCP bet registration server.
 
     The server listens on a given port, accepts client connections,
-    receives newline-terminated messages, logs them, and echoes them
-    back to the client. It runs in a loop until explicitly stopped,
-    ensuring clean shutdown of sockets and proper logging of events.
+    and processes messages defined by the custom binary protocol.
+    It specifically handles bet registration requests (`MsgRegisterBet`),
+    converts them into domain `Bet` objects, stores them, and responds
+    with either a success (`MsgRegisterBetOk`) or failure
+    (`MsgRegisterBetFailed`) message.
+
+    The server runs in a loop until explicitly stopped, ensuring
+    clean shutdown of sockets and proper logging of all events.
     """
 
     def __init__(self, port: int, listen_backlog: int, logger: Logger):
         """
-        Initialize the server socket and prepare it to accept connections.
+        Initialize the server with a listening socket and logger.
 
         Parameters
         ----------
@@ -45,7 +50,9 @@ class Server:
         Start the main server loop.
 
         Continuously accepts new client connections and handles them
-        one at a time. The loop stops when the server is explicitly
+        one at a time. For each connection, the server receives a
+        protocol message, processes it, and sends an appropriate
+        response. The loop stops when the server is explicitly
         stopped or the listening socket is closed.
         """
         self._running = True
@@ -68,8 +75,17 @@ class Server:
         """
         Handle a single client connection.
 
-        Reads a message from the client, logs it, echoes it back,
-        and then closes the connection. Errors are logged and exceptions are handled.
+        Reads a message from the client, logs it, and dispatches it
+        to the appropriate handler. If the message is a valid
+        `MsgRegisterBet`, it is converted into a `Bet` and stored.
+        Otherwise, a failure response is sent.
+
+        Parameters
+        ----------
+        client_sock : Socket
+            The client socket for communication.
+        client_addr : Tuple[str, int]
+            The client address (IP, port).
         """
         try:
             msg: Message = self._protocol.receive_message(client_sock)
@@ -88,10 +104,19 @@ class Server:
 
     def send_message_response(self, client_sock: Socket, msg: Message) -> None:
         """
-        Send a message back to the client.
+        Process a received message and send an appropriate response.
 
-        The message is encoded as UTF-8 and terminated with a newline
-        before being sent.
+        If the message is a `MsgRegisterBet`, it is converted into a
+        `Bet` object, stored, and acknowledged with a
+        `MsgRegisterBetOk`. If the message type is unknown, a
+        `MsgRegisterBetFailed` is sent instead.
+
+        Parameters
+        ----------
+        client_sock : Socket
+            The client socket to send the response to.
+        msg : Message
+            The received protocol message.
         """
         if isinstance(msg, MsgRegisterBet):
             message: MsgRegisterBet = msg
@@ -100,7 +125,7 @@ class Server:
             store_bets([bet])
 
             self._protocol.send_register_bet_ok(
-                client_sock, message.dni, message.number
+                client_sock, message._dni, message._number
             )
 
             self._logger.info(
