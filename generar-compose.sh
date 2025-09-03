@@ -38,7 +38,7 @@ format_client_service() {
       - CLI_ID=$client_num
     volumes:
       - ./client/config.yaml:/config.yaml
-      - ./client/.data/agency-$client_num.csv:/agency.csv:ro
+      - ./.data/agency-$client_num.csv:/agency.csv
     networks:
       - testing_net
     depends_on:
