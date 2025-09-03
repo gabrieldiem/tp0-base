@@ -28,6 +28,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
    1. [Sobre el Ejercicio N°3](#Sobre-el-Ejercicio-N3)
    1. [Sobre el Ejercicio N°4](#Sobre-el-Ejercicio-N4)
    1. [Sobre el Ejercicio N°5](#Sobre-el-Ejercicio-N5)
+   1. [Sobre el Ejercicio N°6](#Sobre-el-Ejercicio-N6)
 
 ## Instrucciones de uso
 
@@ -356,3 +357,5 @@ Tanto para el cliente como para el servidor se separó la lógica de negocio del
 | SOCKET / SERIALIZACIÓN |
 --------------------------
 ```
+
+### Sobre el Ejercicio N°6

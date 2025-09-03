@@ -1,14 +1,15 @@
 from logging import Logger
 from common.protocol import Protocol
 from common.socket import Socket
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from common.utils import Bet, store_bets
 
 from common.messages import (
     Message,
-    MsgRegisterBet,
-    UNKNOWN_BET_INFO,
+    MsgRegisterBets,
+    StandardBet,
     FAILURE_UNKNOWN_MESSAGE,
+    FAILURE_COULD_NOT_PROCESS_BET,
 )
 
 
@@ -120,26 +121,46 @@ class Server:
         msg : Message
             The received protocol message.
         """
-        if isinstance(msg, MsgRegisterBet):
-            message: MsgRegisterBet = msg
-            bet: Bet = message.get_bet()
-
-            store_bets([bet])
-
-            self._protocol.send_register_bet_ok(
-                client_sock, message._dni, message._number
+        if isinstance(msg, MsgRegisterBets):
+            message: MsgRegisterBets = msg
+            self.__process_batch_bet_registration(client_sock, message)
+        else:
+            self._protocol.send_register_bets_failed(
+                client_sock, FAILURE_UNKNOWN_MESSAGE
             )
+            self._logger.error(f"action: mensaje_desconocido | result: fail")
+
+    def __process_batch_bet_registration(
+        self, client_sock: Socket, msg: MsgRegisterBets
+    ):
+        standard_bets: List[StandardBet] = msg.get_bets()
+        storing_success: bool = self.__store_bets(standard_bets)
+
+        if storing_success:
+            self._protocol.send_register_bets_ok(client_sock)
 
             self._logger.info(
-                f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}"
+                f"action: apuesta_recibida | result: success | cantidad: {len(standard_bets)}"
             )
+            return
 
-        else:
-            self._protocol.send_register_bet_failed(
-                client_sock, UNKNOWN_BET_INFO, UNKNOWN_BET_INFO, FAILURE_UNKNOWN_MESSAGE
-            )
+        self._protocol.send_register_bets_failed(
+            client_sock, FAILURE_COULD_NOT_PROCESS_BET
+        )
+        self._logger.info(
+            f"action: apuesta_recibida | result: fail | cantidad: {len(standard_bets)}"
+        )
 
-            self._logger.error(f"action: mensaje_desconocido | result: fail")
+    def __store_bets(self, standard_bets: List[StandardBet]) -> bool:
+        bets: List[Bet] = []
+        for bet in standard_bets:
+            bets.append(bet.to_utility_bet())
+
+        try:
+            store_bets(bets)
+            return True
+        except Exception as e:
+            return False
 
     def stop(self) -> None:
         """

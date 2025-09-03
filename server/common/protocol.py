@@ -5,7 +5,6 @@ from common.messages import Message
 
 from common.messages import (
     Message,
-    MsgRegisterBet,
     MsgRegisterBetOk,
     MsgRegisterBetFailed,
 )
@@ -85,7 +84,7 @@ class Protocol:
         """
         return client_sock.receive_message()
 
-    def send_register_bet_ok(self, client_sock: Socket, dni: int, number: int) -> None:
+    def send_register_bets_ok(self, client_sock: Socket) -> None:
         """
         Send a `MsgRegisterBetOk` response to the client.
 
@@ -98,12 +97,10 @@ class Protocol:
         number : int
             Bet number confirmed by the server.
         """
-        msg: MsgRegisterBetOk = MsgRegisterBetOk(dni, number)
+        msg: MsgRegisterBetOk = MsgRegisterBetOk()
         client_sock.send_message(msg)
 
-    def send_register_bet_failed(
-        self, client_sock: Socket, bet_bni: int, bet_number: int, failure_reason: int
-    ) -> None:
+    def send_register_bets_failed(self, client_sock: Socket, failure_reason: int) -> None:
         """
         Send a `MsgRegisterBetFailed` response to the client.
 
@@ -118,9 +115,7 @@ class Protocol:
         failure_reason : int
             Error code indicating the reason for failure.
         """
-        msg: MsgRegisterBetFailed = MsgRegisterBetFailed(
-            bet_bni, bet_number, failure_reason
-        )
+        msg: MsgRegisterBetFailed = MsgRegisterBetFailed(failure_reason)
         client_sock.send_message(msg)
 
     def shutdown(self) -> None:

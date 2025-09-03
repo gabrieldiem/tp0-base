@@ -1,7 +1,8 @@
 from common.utils import Bet
 from datetime import date
+from typing import Literal, List
 
-MSG_TYPE_REGISTER_BET = 1
+MSG_TYPE_REGISTER_BETS = 1
 MSG_TYPE_REGISTER_BET_OK = 2
 MSG_TYPE_REGISTER_BET_FAILED = 3
 
@@ -13,8 +14,7 @@ SIZEOF_UINT64 = 8
 UNKNOWN_BET_INFO = 0
 
 FAILURE_UNKNOWN_MESSAGE = 1
-
-from typing import Literal
+FAILURE_COULD_NOT_PROCESS_BET = 2
 
 
 class Message:
@@ -40,7 +40,7 @@ class Message:
         raise NotImplementedError()
 
 
-class MsgRegisterBet(Message):
+class StandardBet:
     """
     Client → Server message: request to register a new bet.
 
@@ -77,7 +77,6 @@ class MsgRegisterBet(Message):
         birthdate: int,
         number: int,
     ):
-        self._msg_type = MSG_TYPE_REGISTER_BET
         self._agency = agency
         self._name = name
         self._surname = surname
@@ -131,18 +130,14 @@ class MsgRegisterBet(Message):
         )
 
         # Header
-        header: bytes = self._msg_type.to_bytes(
-            SIZEOF_UINT16,
-            endianness,
-        )
-        header += len(payload).to_bytes(
+        header: bytes = len(payload).to_bytes(
             SIZEOF_UINT32,
             endianness,
         )
 
         return header + payload
 
-    def get_bet(self) -> Bet:
+    def to_utility_bet(self) -> Bet:
         """
         Convert this message into a domain `Bet` object.
 
@@ -162,11 +157,39 @@ class MsgRegisterBet(Message):
             number=str(self._number),
         )
 
-    def __str__(self) -> str:
-        return (
-            f"MsgRegisterBet(name={self._name}, surname={self._surname}, "
-            f"dni={self._dni}, birthdate={self._birthdate}, number={self._number})"
+
+class MsgRegisterBets(Message):
+
+    def __init__(self, bets: List[StandardBet]):
+        self._msg_type = MSG_TYPE_REGISTER_BETS
+        self._number_of_bets = len(bets)
+        self._bets = bets
+
+    def to_bytes(
+        self, character_encoding: str, endianness: Literal["big", "little"]
+    ) -> bytes:
+        """
+        Serialize the message into TLV binary format.
+        """
+        payload: bytes = b""
+        for bet in self._bets:
+            payload += bet.to_bytes(character_encoding, endianness)
+
+        header: bytes = self._msg_type.to_bytes(
+            SIZEOF_UINT16,
+            endianness,
         )
+        header += self._number_of_bets.to_bytes(
+            SIZEOF_UINT32,
+            endianness,
+        )
+        return header + payload
+
+    def __str__(self) -> str:
+        return f"MsgRegisterBets(number_of_bets={self._number_of_bets}, _bets=...)"
+
+    def get_bets(self) -> List[StandardBet]:
+        return self._bets
 
 
 class MsgRegisterBetOk(Message):
@@ -185,10 +208,8 @@ class MsgRegisterBetOk(Message):
         Bet number confirmed by the server.
     """
 
-    def __init__(self, dni: int, number: int):
+    def __init__(self):
         self._msg_type = MSG_TYPE_REGISTER_BET_OK
-        self._dni = dni
-        self._number = number
 
     def to_bytes(
         self, character_encoding: str, endianness: Literal["big", "little"]
@@ -196,28 +217,14 @@ class MsgRegisterBetOk(Message):
         """
         Serialize the message into TLV binary format.
         """
-        payload: bytes = b""
-        payload += int(self._dni).to_bytes(
-            SIZEOF_UINT32,
-            endianness,
-        )
-        payload += int(self._number).to_bytes(
-            SIZEOF_UINT32,
-            endianness,
-        )
-
         header: bytes = self._msg_type.to_bytes(
             SIZEOF_UINT16,
             endianness,
         )
-        header += len(payload).to_bytes(
-            SIZEOF_UINT32,
-            endianness,
-        )
-        return header + payload
+        return header
 
     def __str__(self) -> str:
-        return f"MsgRegisterBetOk(dni={self._dni}, number={self._number})"
+        return f"MsgRegisterBetOk()"
 
 
 class MsgRegisterBetFailed(Message):
@@ -239,10 +246,8 @@ class MsgRegisterBetFailed(Message):
         Error code indicating reason for failure.
     """
 
-    def __init__(self, dni: int, number: int, error_code: int):
+    def __init__(self, error_code: int):
         self._msg_type = MSG_TYPE_REGISTER_BET_FAILED
-        self._dni = dni
-        self._number = number
         self._error_code = error_code
 
     def to_bytes(
@@ -252,14 +257,6 @@ class MsgRegisterBetFailed(Message):
         Serialize the message into TLV binary format.
         """
         payload: bytes = b""
-        payload += int(self._dni).to_bytes(
-            SIZEOF_UINT32,
-            endianness,
-        )
-        payload += int(self._number).to_bytes(
-            SIZEOF_UINT32,
-            endianness,
-        )
         payload += int(self._error_code).to_bytes(
             SIZEOF_UINT16,
             endianness,
@@ -276,7 +273,4 @@ class MsgRegisterBetFailed(Message):
         return header + payload
 
     def __str__(self) -> str:
-        return (
-            f"MsgRegisterBetFailed(dni={self._dni}, number={self._number}, "
-            f"error_code={self._error_code})"
-        )
+        return f"MsgRegisterBetFailed(error_code={self._error_code})"

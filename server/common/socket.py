@@ -1,14 +1,11 @@
 import socket
 from socket import socket as StdSocket
-from typing import Tuple
+from typing import Tuple, List
 from common.messages import (
     Message,
-    MSG_TYPE_REGISTER_BET,
-    MSG_TYPE_REGISTER_BET_OK,
-    MSG_TYPE_REGISTER_BET_FAILED,
-    MsgRegisterBet,
-    MsgRegisterBetOk,
-    MsgRegisterBetFailed,
+    StandardBet,
+    MSG_TYPE_REGISTER_BETS,
+    MsgRegisterBets,
     SIZEOF_UINT16,
     SIZEOF_UINT32,
     SIZEOF_UINT64,
@@ -142,27 +139,34 @@ class Socket:
         ValueError
             If the message type is unknown.
         """
-        sizeof_header: int = SIZEOF_UINT16 + SIZEOF_UINT64
+        sizeof_header: int = SIZEOF_UINT16
         header: bytes = self.__receive_all(sizeof_header)
 
         msg_type: int = int.from_bytes(
             header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
         )
-        length: int = int.from_bytes(
-            header[SIZEOF_UINT16:sizeof_header], Socket.NETWORK_ENDIANNESS
-        )
 
-        payload: bytes = self.__receive_all(length)
+        if msg_type == MSG_TYPE_REGISTER_BETS:
+            raw_number_of_bets: bytes = self.__receive_all(SIZEOF_UINT32)
+            number_of_bets: int = int.from_bytes(
+                raw_number_of_bets[0:SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+            )
 
-        # Dispatch
-        if msg_type == MSG_TYPE_REGISTER_BET:
-            return self.__decode_register_bet(payload)
-        elif msg_type == MSG_TYPE_REGISTER_BET_OK:
-            return self.__decode_register_bet_ok(payload)
-        elif msg_type == MSG_TYPE_REGISTER_BET_FAILED:
-            return self.__decode_register_bet_failed(payload)
-        else:
-            raise ValueError(f"Unknown msg_type {msg_type}")
+            bets: List[StandardBet] = []
+
+            for _ in range(number_of_bets):
+                raw_length: bytes = self.__receive_all(SIZEOF_UINT64)
+                length: int = int.from_bytes(
+                    raw_length[0:SIZEOF_UINT64], Socket.NETWORK_ENDIANNESS
+                )
+                payload: bytes = self.__receive_all(length)
+
+                bet: StandardBet = self.__decode_a_bet(payload)
+                bets.append(bet)
+
+            return MsgRegisterBets(bets)
+
+        raise ValueError(f"Unknown msg_type {msg_type}")
 
     def __receive_all(self, n_bytes: int) -> bytes:
         """
@@ -196,7 +200,7 @@ class Socket:
             data += chunk
         return data
 
-    def __decode_register_bet(self, payload: bytes) -> MsgRegisterBet:
+    def __decode_a_bet(self, payload: bytes) -> StandardBet:
         """
         Decode a `MsgRegisterBet` message from its payload.
 
@@ -256,60 +260,4 @@ class Socket:
         )
         offset += SIZEOF_UINT32
 
-        return MsgRegisterBet(agency, name, surname, dni, birthdate, number)
-
-    def __decode_register_bet_ok(self, payload: bytes) -> MsgRegisterBetOk:
-        """
-        Decode a `MsgRegisterBetOk` message from its payload.
-
-        Payload format:
-            [4 bytes dni]
-            [4 bytes number]
-
-        Returns
-        -------
-        MsgRegisterBetOk
-        """
-        offset: int = 0
-        dni: int = int.from_bytes(
-            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
-        )
-        offset += SIZEOF_UINT32
-
-        number: int = int.from_bytes(
-            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
-        )
-        offset += SIZEOF_UINT32
-
-        return MsgRegisterBetOk(dni, number)
-
-    def __decode_register_bet_failed(self, payload: bytes) -> MsgRegisterBetFailed:
-        """
-        Decode a `MsgRegisterBetFailed` message from its payload.
-
-        Payload format:
-            [4 bytes dni]
-            [4 bytes number]
-            [2 bytes error_code]
-
-        Returns
-        -------
-        MsgRegisterBetFailed
-        """
-        offset = 0
-        dni: int = int.from_bytes(
-            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
-        )
-        offset += SIZEOF_UINT32
-
-        number: int = int.from_bytes(
-            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
-        )
-        offset += SIZEOF_UINT32
-
-        error_code: int = int.from_bytes(
-            payload[offset : offset + SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
-        )
-        offset += SIZEOF_UINT16
-
-        return MsgRegisterBetFailed(dni, number, error_code)
+        return StandardBet(agency, name, surname, dni, birthdate, number)
