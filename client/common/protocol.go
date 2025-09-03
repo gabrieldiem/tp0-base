@@ -9,8 +9,9 @@ import (
 // It provides methods to initialize and clean up the connection,
 // send a bet, and wait for a response.
 type BetProtocol struct {
-	id     string
-	socket Socket
+	id             string
+	socket         Socket
+	batchMaxAmount int
 }
 
 const (
@@ -23,10 +24,11 @@ const (
 )
 
 // NewBetProtocol creates a new BetProtocol with the given server address and client id.
-func NewBetProtocol(serverAddress string, id string) BetProtocol {
+func NewBetProtocol(serverAddress string, id string, batchMaxAmount int) BetProtocol {
 	return BetProtocol{
-		id:     id,
-		socket: NewSocket(serverAddress),
+		id:             id,
+		socket:         NewSocket(serverAddress),
+		batchMaxAmount: batchMaxAmount,
 	}
 }
 
@@ -77,6 +79,10 @@ func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.C
 // CanGroupBet checks if adding `bet` to the current batch of bets
 // would keep the total binary size under 8KB.
 func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int) bool {
+	if numberOfBets+1 > p.batchMaxAmount {
+		return false
+	}
+
 	newBetSize := len(bet.ToBytes(NETWORK_ENDIANNESS))
 	newTotalSize := *betsBatchSize + newBetSize + GetOverheadInBytes(numberOfBets+1)
 

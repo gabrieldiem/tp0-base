@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/op/go-logging"
 )
@@ -14,10 +13,9 @@ var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
-	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
+	ID             string
+	ServerAddress  string
+	BatchMaxAmount int
 }
 
 // Client manages sending bets to a server and receiving responses.
@@ -47,7 +45,7 @@ func NewClient(config ClientConfig, betProvider BetProvider) *Client {
 		config:        config,
 		signalChannel: make(chan os.Signal, MAX_SIGNAL_BUFFER),
 		betProvider:   betProvider,
-		protocol:      NewBetProtocol(config.ServerAddress, config.ID),
+		protocol:      NewBetProtocol(config.ServerAddress, config.ID, config.BatchMaxAmount),
 	}
 
 	signal.Notify(client.signalChannel, syscall.SIGTERM, syscall.SIGINT)
