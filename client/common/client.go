@@ -117,7 +117,7 @@ func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
 	}
 
 	if bet.Number != betNumber {
-		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: confirmation is for different number", bet.Dni, bet.Number)
+		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: confirmation is for different number expected %v but got %v", bet.Number, betNumber)
 	}
 
 	return CONTINUE
