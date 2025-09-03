@@ -1,7 +1,7 @@
 from logging import Logger
 from common.protocol import Protocol
 from common.socket import Socket
-from typing import Tuple
+from typing import Tuple, Optional
 from common.utils import Bet, store_bets
 
 from common.messages import (
@@ -44,6 +44,7 @@ class Server:
         self._logger: Logger = logger
         self._running: bool = False
         self._stopped: bool = False
+        self._client: Optional[Socket] = None
 
     def run(self) -> None:
         """
@@ -66,8 +67,9 @@ class Server:
 
             if not client_sock:
                 break
+            self._client = client_sock
 
-            self.__handle_client_connection(client_sock, addr)
+            self.__handle_client_connection(self._client, addr)
 
     def __handle_client_connection(
         self, client_sock: Socket, client_addr: Tuple[str, int]
@@ -148,6 +150,10 @@ class Server:
         """
         if self._stopped:
             return
+
+        if self._client:
+            self._protocol.shutdown_socket(self._client)
+            self._client = None
 
         self._protocol.shutdown()
         self._stopped = True
