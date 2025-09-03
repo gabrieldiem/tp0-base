@@ -10,7 +10,9 @@ from common.messages import (
     MsgRegisterBetOk,
     MsgRegisterBetFailed,
     SIZEOF_UINT16,
+    SIZEOF_UINT32,
     SIZEOF_UINT64,
+    SIZEOF_INT64,
 )
 
 
@@ -80,45 +82,79 @@ class Socket:
     def __decode_register_bet(self, payload: bytes) -> MsgRegisterBet:
         offset = 0
 
+        # Agency
+        agency = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
+
         # Name
         name_len = int.from_bytes(
-            payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
-        offset += 4
+        offset += SIZEOF_UINT32
         name = payload[offset : offset + name_len].decode("utf-8")
         offset += name_len
 
         # Surname
         surname_len = int.from_bytes(
-            payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
-        offset += 4
+        offset += SIZEOF_UINT32
         surname = payload[offset : offset + surname_len].decode("utf-8")
         offset += surname_len
 
         # Dni
-        dni = int.from_bytes(payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS)
-        offset += 4
+        dni = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
 
         # Birthdate
         birthdate = int.from_bytes(
-            payload[offset : offset + 8], Socket.NETWORK_ENDIANNESS, signed=True
+            payload[offset : offset + SIZEOF_INT64],
+            Socket.NETWORK_ENDIANNESS,
+            signed=True,
         )
-        offset += 8
+        offset += SIZEOF_INT64
 
         # Number
-        number = int.from_bytes(payload[offset : offset + 4], Socket.NETWORK_ENDIANNESS)
-        offset += 4
+        number = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
 
-        return MsgRegisterBet(name, surname, dni, birthdate, number)
+        return MsgRegisterBet(agency, name, surname, dni, birthdate, number)
 
     def __decode_register_bet_ok(self, payload: bytes) -> MsgRegisterBetOk:
-        dni = int.from_bytes(payload[0:4], Socket.NETWORK_ENDIANNESS)
-        number = int.from_bytes(payload[4:8], Socket.NETWORK_ENDIANNESS)
+        offset = 0
+        dni = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
+
+        number = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
+
         return MsgRegisterBetOk(dni, number)
 
     def __decode_register_bet_failed(self, payload: bytes) -> MsgRegisterBetFailed:
-        dni = int.from_bytes(payload[0:4], Socket.NETWORK_ENDIANNESS)
-        number = int.from_bytes(payload[4:8], Socket.NETWORK_ENDIANNESS)
-        error_code = int.from_bytes(payload[8:10], Socket.NETWORK_ENDIANNESS)
+        offset = 0
+        dni = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
+
+        number = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT32
+
+        error_code = int.from_bytes(
+            payload[offset : offset + SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
+        )
+        offset += SIZEOF_UINT16
+
         return MsgRegisterBetFailed(dni, number, error_code)

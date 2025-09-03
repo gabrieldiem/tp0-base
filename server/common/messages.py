@@ -7,6 +7,10 @@ SIZEOF_UINT32 = 4
 SIZEOF_INT64 = 8
 SIZEOF_UINT64 = 8
 
+UNKNOWN_BET_INFO = 0
+
+FAILURE_UNKNOWN_MESSAGE = 1
+
 from typing import Literal
 
 
@@ -19,8 +23,17 @@ class Message:
 
 
 class MsgRegisterBet(Message):
-    def __init__(self, name: str, surname: str, dni: int, birthdate: int, number: int):
+    def __init__(
+        self,
+        agency: int,
+        name: str,
+        surname: str,
+        dni: int,
+        birthdate: int,
+        number: int,
+    ):
         self.msg_type = MSG_TYPE_REGISTER_BET
+        self.agency = agency
         self.name = name
         self.surname = surname
         self.dni = dni
@@ -31,6 +44,12 @@ class MsgRegisterBet(Message):
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
         payload = b""
+
+        # Agency
+        payload += int(self.agency).to_bytes(
+            SIZEOF_UINT32,
+            endianness,
+        )
 
         # Name
         name_bytes = self.name.encode(character_encoding)

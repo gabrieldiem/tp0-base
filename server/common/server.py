@@ -3,7 +3,12 @@ from common.protocol import Protocol
 from common.socket import Socket
 from typing import Tuple
 
-from common.messages import Message, MsgRegisterBet
+from common.messages import (
+    Message,
+    MsgRegisterBet,
+    UNKNOWN_BET_INFO,
+    FAILURE_UNKNOWN_MESSAGE,
+)
 
 
 class Server:
@@ -74,7 +79,7 @@ class Server:
             if self._running:
                 self.send_message_response(client_sock, msg)
 
-        except OSError as e:
+        except (ConnectionError, ValueError, OSError) as e:
             self._logger.error(f"action: receive_message | result: fail | error: {e}")
 
         finally:
@@ -89,11 +94,14 @@ class Server:
         """
         if isinstance(msg, MsgRegisterBet):
             message: MsgRegisterBet = msg
+            
             self._protocol.send_register_bet_ok(
                 client_sock, message.dni, message.number
             )
         else:
-            self._protocol.send_register_bet_failed(client_sock)
+            self._protocol.send_register_bet_failed(
+                client_sock, UNKNOWN_BET_INFO, UNKNOWN_BET_INFO, FAILURE_UNKNOWN_MESSAGE
+            )
 
     def stop(self) -> None:
         """

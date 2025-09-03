@@ -49,8 +49,8 @@ class Protocol:
         msg: MsgRegisterBetOk = MsgRegisterBetOk(dni, number)
         client_sock.send_message(msg)
 
-    def send_register_bet_failed(self, client_sock: Socket) -> None:
-        msg: MsgRegisterBetFailed = MsgRegisterBetFailed(0, 0, 1)
+    def send_register_bet_failed(self, client_sock: Socket, bet_bni: int, bet_number: int, failure_reason: int) -> None:
+        msg: MsgRegisterBetFailed = MsgRegisterBetFailed(bet_bni, bet_number, failure_reason)
         client_sock.send_message(msg)
 
     def shutdown(self) -> None:
