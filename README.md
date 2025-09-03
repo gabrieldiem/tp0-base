@@ -282,13 +282,77 @@ El enfoque previamente mencionado se descartó parcialmente en una segunda itera
 
 ### Sobre el Ejercicio N°5
 
+Se agregó en el generador de YAML de Docker Compose las variables de entorno con los valores dados de ejemplo en la consigna para los clientes. La firma del script no cambió, por lo que se puede ejecutar de la misma manera.
+
+En el cliente se implementó una interfaz de proveedor de apuestas BetProvider para no quedar atado a las variables de entorno teniendo en cuenta que esto cambiará en el futuro. Además, se eliminó la funcionalidad anterior de sleep y mandado de mensajes en loop con diferentes IDs de mensaje.
+
+En el proceso de separación de capas se generaron nuevos módulos para cada capa y que las incumbencias queden separadas. Para la serialización de mensajes se utilizó interfaces donde cada tipo de mensaje sabe cómo serializarse (función `ToBytes()`). Esta separación hizo que se tenga que ajustar un poco el manejo de signals, utilizando `select` y `context` para desbloquear apropiadamente
+
+En el servidor se imitó el approach ejecutado en el cliente, con la separación de capas y que cada mensaje sepa serializarse. Se usó la función proveída en el módulo `utils` para guardar las apuestas. Además, se eliminó la funcionalidad anterior de ser un echo server.
+
 #### Protocolo
 
-Cliente: Agencia de quiniela
-Servidor: Central de Lotería Nacional
+- **Cliente**: Agencia de quiniela
+- **Servidor**: Central de Lotería Nacional
+- **Tipo de comunicación**: Socket TCP para comunicaciones confiables
+- **Encoding de datos**: binario, tipo TLV (Type-Length-Value) para soportar datos variables de manera extensible
+- **Serialización**: uso de BigEndian ya que es el endianness de la red
 
-| Mensaje               | Emisor   | Receptor | Payload                                                                                            | Propósito                                                                                            |
-| --------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **RegisterBet**       | Cliente  | Servidor | `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: str`,<br> `NUMERO: int` | Registrar una apuesta que vincula a un número<br> con una persona en particular                      |
-| **RegisterBetOk**     | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`                                                               | Informar que operación **RegisterBet** fue exitosa.<br> El payload sirve para identificar la apuesta |
-| **RegisterBetFailed** | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`, <br> `ERROR: int`                                                               | Informar que operación **RegisterBet** fue errónea.<br> El payload sirve para identificar la apuesta.<br> Se provee un código de error |
+| Mensaje               | Emisor   | Receptor | Payload                                                                                                                | Propósito                                                                                                                              |
+| --------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **RegisterBet**       | Cliente  | Servidor | `AGENCIA: int`,<br> `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: int`,<br> `NUMERO: int` | Registrar una apuesta que vincula a un número<br> con una persona en particular                                                        |
+| **RegisterBetOk**     | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`                                                                                   | Informar que operación **RegisterBet** fue exitosa.<br> El payload sirve para identificar la apuesta                                   |
+| **RegisterBetFailed** | Servidor | Cliente  | `DOCUMENTO: int`, <br> `NUMERO: int`, <br> `ERROR: int`                                                                | Informar que operación **RegisterBet** fue errónea.<br> El payload sirve para identificar la apuesta.<br> Se provee un código de error |
+
+#### Formato de paquetes:
+
+El campo `msg_type` se encuentra como los primeros 2 bytes de todo paquete para distinguir el tipo de paquete y luego hacer el decoding correcto.
+
+**_RegisterBet_**
+
+Una `Bet` puede ser de longitud variable ya que los strings pueden ser de longitud variable, por lo tanto todo el payload puede ser de longitud variable.
+
+```
+| msg_type (2 bytes) | bet_len (8 bytes) | bet (bet_len bytes) |
+```
+
+La `Bet` tiene la siguiente forma:
+
+```
+| agency      (4 bytes) |
+| name_len    (4 bytes) | name    (name_len bytes)    |
+| surname_len (4 bytes) | surname (surname_len bytes) |
+| dni         (4 bytes) |
+| birthdate   (8 bytes) |
+| number      (4 bytes) |
+```
+
+> Nota: `birthdate` es un Unix Timestamp.
+
+**_RegisterBetOk_**
+
+```
+| msg_type (2 bytes) | dni (4 bytes) | number (4 bytes) |
+```
+
+**_RegisterBetFailed_**
+
+```
+| msg_type (2 bytes) | dni (4 bytes) | number (4 bytes) | error_code (2 bytes) |
+```
+
+El `error_code` permite dar un motivo al cliente de por qué se rechazó.
+
+#### Abstracción en capas
+
+Tanto para el cliente como para el servidor se separó la lógica de negocio del protocolo y la serialización, resultando en las siguientes capas, donde una capa se comunica con la de abajo:
+
+```
+--------------------------
+|    LÓGICA DE NEGOCIO   |
+--------------------------
+|        PROTOCOLO       |
+--------------------------
+| SOCKET / SERIALIZACIÓN |
+--------------------------
+```
