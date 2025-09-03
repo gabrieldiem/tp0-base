@@ -48,6 +48,51 @@ func NewBet(agency int, name, surname string, dni int, birthdate time.Time, numb
 	}
 }
 
+/*
+ToBytes serializes a Bet into binary format:
+
+| agency (4 bytes) |
+| name_len (4 bytes) | name (name_len bytes) |
+| surname_len (4 bytes) | surname (surname_len bytes) |
+| dni (4 bytes) |
+| birthdate (8 bytes, Unix timestamp) |
+| number (4 bytes) |
+*/
+func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
+	valueBuff := new(bytes.Buffer)
+
+	binary.Write(valueBuff, endianness, uint32(b.Agency))
+
+	// Name encoding
+	nameBytes := []byte(b.Name)
+	binary.Write(valueBuff, endianness, uint32(len(nameBytes)))
+	valueBuff.Write(nameBytes)
+
+	// Surname encoding
+	surnameBytes := []byte(b.Surname)
+	binary.Write(valueBuff, endianness, uint32(len(surnameBytes)))
+	valueBuff.Write(surnameBytes)
+
+	// Dni encoding
+	binary.Write(valueBuff, endianness, uint32(b.Dni))
+
+	// Birthdate as Unix timestamp encoding
+	binary.Write(valueBuff, endianness, b.Birthdate.Unix())
+
+	// Number encoding
+	binary.Write(valueBuff, endianness, uint32(b.Number))
+
+	return valueBuff.Bytes()
+}
+
+// String returns a string representation of the Bet.
+func (b Bet) String() string {
+	return fmt.Sprintf(
+		"Bet(Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",
+		b.Name, b.Surname, b.Dni, b.Birthdate.Format(BIRTHDATE_FORMAT), b.Number,
+	)
+}
+
 // BetProvider defines an interface for providing bets.
 type BetProvider interface {
 	NextBet() (*Bet, error)
@@ -201,49 +246,4 @@ func (p *CsvBetProvider) HasNextBet() bool {
 // Close releases the file handle.
 func (p *CsvBetProvider) Close() error {
 	return p.file.Close()
-}
-
-/*
-ToBytes serializes a Bet into binary format:
-
-| agency (4 bytes) |
-| name_len (4 bytes) | name (name_len bytes) |
-| surname_len (4 bytes) | surname (surname_len bytes) |
-| dni (4 bytes) |
-| birthdate (8 bytes, Unix timestamp) |
-| number (4 bytes) |
-*/
-func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
-	valueBuff := new(bytes.Buffer)
-
-	binary.Write(valueBuff, endianness, uint32(b.Agency))
-
-	// Name encoding
-	nameBytes := []byte(b.Name)
-	binary.Write(valueBuff, endianness, uint32(len(nameBytes)))
-	valueBuff.Write(nameBytes)
-
-	// Surname encoding
-	surnameBytes := []byte(b.Surname)
-	binary.Write(valueBuff, endianness, uint32(len(surnameBytes)))
-	valueBuff.Write(surnameBytes)
-
-	// Dni encoding
-	binary.Write(valueBuff, endianness, uint32(b.Dni))
-
-	// Birthdate as Unix timestamp encoding
-	binary.Write(valueBuff, endianness, b.Birthdate.Unix())
-
-	// Number encoding
-	binary.Write(valueBuff, endianness, uint32(b.Number))
-
-	return valueBuff.Bytes()
-}
-
-// String returns a string representation of the Bet.
-func (b Bet) String() string {
-	return fmt.Sprintf(
-		"Bet(Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",
-		b.Name, b.Surname, b.Dni, b.Birthdate.Format(BIRTHDATE_FORMAT), b.Number,
-	)
 }
