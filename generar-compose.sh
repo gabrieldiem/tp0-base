@@ -4,12 +4,6 @@ OUTPUT_FILENAME=$1
 NUM_CLIENTS=$2
 ERROR_EXIT_CODE=1
 
-DATA_NOMBRE="Santiago Lionel"
-DATA_APELLIDO="Lorca"
-DATA_DOCUMENTO=30904465
-DATA_NACIMIENTO="1999-03-17"
-DATA_NUMERO=7574
-
 # Check for both necessary inputs
 if [ -z "$OUTPUT_FILENAME" ] || [ -z "$NUM_CLIENTS" ]; then
   echo "Usage: $0 <OUTPUT_FILENAME> <NUMBER_OF_CLIENTS>"
@@ -42,13 +36,9 @@ format_client_service() {
     entrypoint: /client
     environment:
       - CLI_ID=$client_num
-      - NOMBRE=$DATA_NOMBRE
-      - APELLIDO=$DATA_APELLIDO
-      - DOCUMENTO=$DATA_DOCUMENTO
-      - NACIMIENTO=$DATA_NACIMIENTO
-      - NUMERO=$DATA_NUMERO
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./client/.data/agency-$client_num.csv:/agency.csv:ro
     networks:
       - testing_net
     depends_on:
