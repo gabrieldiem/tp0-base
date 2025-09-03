@@ -29,7 +29,7 @@ class Socket:
     @classmethod
     def from_existing(cls, sock: StdSocket) -> "Socket":
         """Wrap an existing socket in a Socket instance."""
-        obj = cls.__new__(cls)  # bypass __init__
+        obj: Socket = cls.__new__(cls)  # bypass __init__
         obj._socket = sock
         return obj
 
@@ -43,7 +43,9 @@ class Socket:
         return addr, Socket.from_existing(client_socket)
 
     def send_message(self, msg: Message) -> None:
-        raw_message = msg.to_bytes(Socket.CHAR_ENCODING, Socket.NETWORK_ENDIANNESS)
+        raw_message: bytes = msg.to_bytes(
+            Socket.CHAR_ENCODING, Socket.NETWORK_ENDIANNESS
+        )
         self._socket.sendall(raw_message)
 
     def receive_message(self) -> Message:
@@ -51,18 +53,20 @@ class Socket:
 
     def __decode_message(self) -> Message:
         # Read header
-        sizeof_header = SIZEOF_UINT16 + SIZEOF_UINT64
-        header = self._socket.recv(sizeof_header)
+        sizeof_header: int = SIZEOF_UINT16 + SIZEOF_UINT64
+        header: bytes = self._socket.recv(sizeof_header)
         if len(header) < sizeof_header:
             raise ConnectionError("Incomplete header")
 
-        msg_type = int.from_bytes(header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS)
-        length = int.from_bytes(
+        msg_type: int = int.from_bytes(
+            header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
+        )
+        length: int = int.from_bytes(
             header[SIZEOF_UINT16:sizeof_header], Socket.NETWORK_ENDIANNESS
         )
 
         # Read payload
-        payload = b""
+        payload: bytes = b""
         while len(payload) < length:
             chunk = self._socket.recv(length - len(payload))
             if not chunk:
@@ -80,38 +84,38 @@ class Socket:
             raise ValueError(f"Unknown msg_type {msg_type}")
 
     def __decode_register_bet(self, payload: bytes) -> MsgRegisterBet:
-        offset = 0
+        offset: int = 0
 
         # Agency
-        agency = int.from_bytes(
+        agency: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
 
         # Name
-        name_len = int.from_bytes(
+        name_len: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
-        name = payload[offset : offset + name_len].decode("utf-8")
+        name: str = payload[offset : offset + name_len].decode("utf-8")
         offset += name_len
 
         # Surname
-        surname_len = int.from_bytes(
+        surname_len: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
-        surname = payload[offset : offset + surname_len].decode("utf-8")
+        surname: str = payload[offset : offset + surname_len].decode("utf-8")
         offset += surname_len
 
         # Dni
-        dni = int.from_bytes(
+        dni: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
 
         # Birthdate
-        birthdate = int.from_bytes(
+        birthdate: int = int.from_bytes(
             payload[offset : offset + SIZEOF_INT64],
             Socket.NETWORK_ENDIANNESS,
             signed=True,
@@ -119,7 +123,7 @@ class Socket:
         offset += SIZEOF_INT64
 
         # Number
-        number = int.from_bytes(
+        number: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
@@ -127,13 +131,13 @@ class Socket:
         return MsgRegisterBet(agency, name, surname, dni, birthdate, number)
 
     def __decode_register_bet_ok(self, payload: bytes) -> MsgRegisterBetOk:
-        offset = 0
-        dni = int.from_bytes(
+        offset: int = 0
+        dni: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
 
-        number = int.from_bytes(
+        number: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
@@ -142,17 +146,17 @@ class Socket:
 
     def __decode_register_bet_failed(self, payload: bytes) -> MsgRegisterBetFailed:
         offset = 0
-        dni = int.from_bytes(
+        dni: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
 
-        number = int.from_bytes(
+        number: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT32
 
-        error_code = int.from_bytes(
+        error_code: int = int.from_bytes(
             payload[offset : offset + SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
         )
         offset += SIZEOF_UINT16
