@@ -20,11 +20,23 @@ const (
 )
 
 type Bet struct {
+	Agency    int
 	Name      string
 	Surname   string
 	Dni       int
 	Birthdate time.Time
 	Number    int
+}
+
+func NewBet(agency int, name, surname string, dni int, birthdate time.Time, number int) Bet {
+	return Bet{
+		Agency:    agency,
+		Name:      name,
+		Surname:   surname,
+		Dni:       dni,
+		Birthdate: birthdate,
+		Number:    number,
+	}
 }
 
 type BetProvider interface {
@@ -37,7 +49,7 @@ type EnvBetProvider struct {
 	hasNext bool
 }
 
-func NewEnvBetProvider() (*EnvBetProvider, error) {
+func NewEnvBetProvider(agencyId int) (*EnvBetProvider, error) {
 	dniStr := os.Getenv(DNI_ENV_KEY)
 	dni, err := strconv.Atoi(dniStr)
 	if err != nil {
@@ -56,13 +68,7 @@ func NewEnvBetProvider() (*EnvBetProvider, error) {
 		return nil, err
 	}
 
-	bet := Bet{
-		Name:      os.Getenv(NAME_ENV_KEY),
-		Surname:   os.Getenv(SURNAME_ENV_KEY),
-		Dni:       dni,
-		Birthdate: birthdate,
-		Number:    num,
-	}
+	bet := NewBet(agencyId, os.Getenv(NAME_ENV_KEY), os.Getenv(SURNAME_ENV_KEY), dni, birthdate, num)
 
 	return &EnvBetProvider{
 		bet:     bet,
@@ -88,6 +94,8 @@ func (p *EnvBetProvider) HasNextBet() bool {
 */
 func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
 	valueBuff := new(bytes.Buffer)
+
+	binary.Write(valueBuff, endianness, uint32(b.Agency))
 
 	// Name encoding
 	nameBytes := []byte(b.Name)

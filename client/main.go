@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -118,7 +119,13 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	envBetProvider, err := common.NewEnvBetProvider()
+	clientId, err := strconv.Atoi(clientConfig.ID)
+	if err != nil {
+		log.Criticalf("%s", err)
+		return
+	}
+
+	envBetProvider, err := common.NewEnvBetProvider(clientId)
 	if err != nil {
 		log.Criticalf("%s", err)
 		os.Exit(FAILED_TO_READ_BETS)
