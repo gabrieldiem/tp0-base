@@ -1,3 +1,6 @@
+from common.utils import Bet
+from datetime import date
+
 MSG_TYPE_REGISTER_BET = 1
 MSG_TYPE_REGISTER_BET_OK = 2
 MSG_TYPE_REGISTER_BET_FAILED = 3
@@ -93,6 +96,20 @@ class MsgRegisterBet(Message):
         )
 
         return header + payload
+
+    def get_bet(self) -> Bet:
+        """Convert MsgRegisterBet into a Bet domain object."""
+        # Convert Unix timestamp → ISO date string
+        birthdate_str = date.fromtimestamp(self.birthdate).isoformat()
+
+        return Bet(
+            agency=str(self.agency),
+            first_name=self.name,
+            last_name=self.surname,
+            document=str(self.dni),
+            birthdate=birthdate_str,
+            number=str(self.number),
+        )
 
     def __str__(self) -> str:
         return (

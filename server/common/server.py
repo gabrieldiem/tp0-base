@@ -2,6 +2,7 @@ from logging import Logger
 from common.protocol import Protocol
 from common.socket import Socket
 from typing import Tuple
+from common.utils import Bet, store_bets
 
 from common.messages import (
     Message,
@@ -94,6 +95,9 @@ class Server:
         """
         if isinstance(msg, MsgRegisterBet):
             message: MsgRegisterBet = msg
+            bet: Bet = message.get_bet()
+            
+            store_bets([bet])
             
             self._protocol.send_register_bet_ok(
                 client_sock, message.dni, message.number
