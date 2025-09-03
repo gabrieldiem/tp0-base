@@ -79,8 +79,14 @@ func (c *Client) StartClientLoop() {
 	}()
 
 	for c.betProvider.HasNextBet() && loop == CONTINUE {
-		bet := c.betProvider.NextBet()
-		loop = c.runIteration(&bet, ctx)
+		bet, err := c.betProvider.NextBet()
+
+		if err != nil {
+			log.Criticalf("action: loop_finished | result: fail | error: %s", bet.Dni, bet.Number, err)
+			return
+		}
+
+		loop = c.runIteration(bet, ctx)
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)

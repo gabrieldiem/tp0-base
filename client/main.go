@@ -125,13 +125,13 @@ func main() {
 		return
 	}
 
-	envBetProvider, err := common.NewEnvBetProvider(clientId)
+	csvBetProvider, err := common.NewCsvBetProvider(clientId)
 	if err != nil {
 		log.Criticalf("%s", err)
 		os.Exit(FAILED_TO_READ_BETS)
 	}
 
-	client := common.NewClient(clientConfig, envBetProvider)
+	client := common.NewClient(clientConfig, csvBetProvider)
 
 	client.StartClientLoop()
 }
