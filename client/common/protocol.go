@@ -71,6 +71,7 @@ func (p *BetProtocol) registerBet(bet *Bet, ctx context.Context) error {
 // it returns BET_NUMBER_FOR_ERRORS and an error.
 func (p *BetProtocol) expectRegisterBetOk(ctx context.Context) (betNumber int, err error) {
 	msg, err := p.socket.ReceiveMessage(ctx)
+
 	if err != nil {
 		return BET_NUMBER_FOR_ERRORS, err
 	}

@@ -92,19 +92,19 @@ func NewDecodeResult(msg Message, err error) DecodeResult {
 
 // decodeMessage decodes a payload into a specific Message type
 // based on the given msgType and sends the result to the channel.
-func (s *Socket) decodeMessage(msgType uint16, payload []byte, done chan DecodeResult) {
+func (s *Socket) decodeMessage(msgType uint16, payload []byte) DecodeResult {
 	switch msgType {
 	case MSG_TYPE_REGISTER_BET:
 		m, err := DecodeMsgRegisterBet(payload, NETWORK_ENDIANNESS)
-		done <- NewDecodeResult(m, err)
+		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_OK:
 		m, err := DecodeMsgRegisterBetOk(payload, NETWORK_ENDIANNESS)
-		done <- NewDecodeResult(m, err)
+		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_FAILED:
 		m, err := DecodeMsgRegisterBetFailed(payload, NETWORK_ENDIANNESS)
-		done <- NewDecodeResult(m, err)
+		return NewDecodeResult(m, err)
 	default:
-		done <- NewDecodeResult(nil, fmt.Errorf("unknown message type: %d", msgType))
+		return NewDecodeResult(nil, fmt.Errorf("unknown message type: %d", msgType))
 	}
 }
 
@@ -148,12 +148,15 @@ func (s *Socket) ReceiveMessage(ctx context.Context) (Message, error) {
 
 	go func() {
 		defer close(done)
+
 		msgType, payload := s.decodeHeader(done)
 		if payload != nil {
-			s.decodeMessage(msgType, payload, done)
-		} else {
-			done <- NewDecodeResult(nil, fmt.Errorf("failed to decode header"))
+			result := s.decodeMessage(msgType, payload)
+			done <- result
+			return
 		}
+
+		done <- NewDecodeResult(nil, fmt.Errorf("failed to decode header"))
 	}()
 
 	select {

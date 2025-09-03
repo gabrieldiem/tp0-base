@@ -96,8 +96,12 @@ func (c *Client) runIteration(bet *Bet, ctx context.Context) int {
 	}
 
 	betNumber, err := c.protocol.expectRegisterBetOk(ctx)
-	if err != nil {
+	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
+		return STOP
+	}
+
+	if ctx.Err() != nil {
 		return STOP
 	}
 
