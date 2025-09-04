@@ -7,23 +7,23 @@ import (
 
 // BetProtocol manages communication with the server using a Socket.
 // It provides methods to initialize and clean up the connection,
-// send a bet, and wait for a response.
+// send batches of bets, and wait for server confirmations.
 type BetProtocol struct {
-	id             string
-	socket         Socket
-	batchMaxAmount int
+	id             string // client identifier
+	socket         Socket // underlying TCP socket abstraction
+	batchMaxAmount int    // maximum number of bets allowed in a batch
 }
 
 const (
-	// BET_NUMBER_FOR_ERRORS is returned when an error occurs
-	// while waiting for a bet confirmation.
-	BET_NUMBER_FOR_ERRORS = -1
+	// Number of bytes in a kilobyte.
+	KILO_BYTE = 1024
 
-	KILO_BYTE           = 1024
+	// MAX_BETS_BATCH_SIZE is the maximum allowed size of a batch in bytes.
 	MAX_BETS_BATCH_SIZE = 8 * KILO_BYTE
 )
 
-// NewBetProtocol creates a new BetProtocol with the given server address and client id.
+// NewBetProtocol creates a new BetProtocol with the given server address,
+// client ID, and maximum batch size.
 func NewBetProtocol(serverAddress string, id string, batchMaxAmount int) BetProtocol {
 	return BetProtocol{
 		id:             id,
@@ -61,9 +61,13 @@ func (p *BetProtocol) Cleanup() error {
 	return nil
 }
 
+// RegisterBets sends a batch of bets to the server.
+// It logs the number of bets and the packet size in KB before sending.
+// The packet size includes both the serialized bets and protocol overhead.
 func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.Context) error {
 	msg := NewMsgRegisterBets(*bets)
 
+	// Compute packet size in KB (bets + protocol overhead)
 	packetSizeKB := float64(betsBatchSize+GetOverheadInBytes(len(*bets)+1)) / float64(KILO_BYTE)
 
 	log.Infof(
@@ -77,17 +81,30 @@ func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.C
 }
 
 // CanGroupBet checks if adding `bet` to the current batch of bets
-// would keep the total binary size under 8KB.
+// would keep the total binary size under the maximum allowed batch size (8KB).
+//
+// - numberOfBets: current number of bets in the batch
+// - bet: the new bet to consider adding
+// - betsBatchSize: pointer to the current accumulated batch size in bytes
+//
+// Returns true if the bet can be added without exceeding the limit.
+// If true, betsBatchSize is updated to include the new bet's size.
 func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int) bool {
+	// Check if adding another bet would exceed the configured max amount
 	if numberOfBets+1 > p.batchMaxAmount {
 		return false
 	}
 
+	// Compute size of the new bet
 	newBetSize := len(bet.ToBytes(NETWORK_ENDIANNESS))
+
+	// Compute new total size including protocol overhead
 	newTotalSize := *betsBatchSize + newBetSize + GetOverheadInBytes(numberOfBets+1)
 
+	// Check if the new total size fits within the 8KB limit
 	canGroup := newTotalSize <= MAX_BETS_BATCH_SIZE
 
+	// If it fits, update the accumulated batch size
 	if canGroup {
 		*betsBatchSize += newBetSize
 	}
@@ -95,10 +112,13 @@ func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int
 	return canGroup
 }
 
-// expectRegisterBetOk waits for a response from the server.
-// It returns the confirmed bet number if a MsgRegisterBetOk is received.
-// If a MsgRegisterBetFailed or an unexpected message is received,
-// it returns BET_NUMBER_FOR_ERRORS and an error.
+// ExpectRegisterBetOk waits for a response from the server after sending a batch.
+// It expects either:
+//   - MsgRegisterBetOk → success
+//   - MsgRegisterBetFailed → failure
+//   - Any other message → treated as unexpected
+//
+// Returns nil if the confirmation is successful, or an error otherwise.
 func (p *BetProtocol) ExpectRegisterBetOk(ctx context.Context) error {
 	msg, err := p.socket.ReceiveMessage(ctx)
 

@@ -15,10 +15,7 @@ import (
 )
 
 const (
-	CONFIG_FILEPATH       = "./config.yaml"
-	GENERIC_ERROR_CODE    = 1
-	FAILED_TO_LOAD_CONFIG = 2
-	FAILED_TO_READ_BETS   = 3
+	CONFIG_FILEPATH = "./config.yaml"
 )
 
 var log = logging.MustGetLogger("log")

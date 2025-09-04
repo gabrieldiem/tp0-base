@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	// CSV column indexes
 	CSV_NAME_ROW_KEY      = 0
 	CSV_SURNAME_ROW_KEY   = 1
 	CSV_DNI_ROW_KEY       = 2
@@ -21,6 +22,7 @@ const (
 
 	BIRTHDATE_FORMAT = "2006-01-02"
 
+	// Default CSV file path and parsing configuration
 	CSV_FILEPATH        = "./agency.csv"
 	CSV_SEPARATING_CHAR = ","
 	CSV_FIELDS_COUNT    = 5
@@ -49,7 +51,9 @@ func NewBet(agency int, name, surname string, dni int, birthdate time.Time, numb
 }
 
 /*
-ToBytes serializes a Bet into binary format:
+ToBytes serializes a Bet into binary format.
+
+The layout is:
 
 | agency (4 bytes) |
 | name_len (4 bytes) | name (name_len bytes) |
@@ -88,18 +92,20 @@ func (b Bet) ToBytes(endianness binary.ByteOrder) []byte {
 // String returns a string representation of the Bet.
 func (b Bet) String() string {
 	return fmt.Sprintf(
-		"Bet(Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",
-		b.Name, b.Surname, b.Dni, b.Birthdate.Format(BIRTHDATE_FORMAT), b.Number,
+		"Bet(Agency=%v, Name=%s, Surname=%s, Dni=%d, Birthdate=%s, Number=%d)",
+		b.Agency, b.Name, b.Surname, b.Dni, b.Birthdate.Format(BIRTHDATE_FORMAT), b.Number,
 	)
 }
 
 // BetProvider defines an interface for providing bets.
+// Implementations can provide bets from different sources (CSV, env vars, etc.).
 type BetProvider interface {
-	NextBet() (*Bet, error)
-	HasNextBet() bool
+	NextBet() (*Bet, error) // returns the next bet, or error if parsing fails
+	HasNextBet() bool       // returns true if there are more bets available
 }
 
-// EnvBetProvider provides a single Bet from environment variables.
+// CsvBetProvider provides bets by reading them line by line from a CSV file.
+// It streams bets instead of loading the entire file into memory.
 type CsvBetProvider struct {
 	agencyID   int
 	file       *os.File
@@ -110,6 +116,7 @@ type CsvBetProvider struct {
 }
 
 // NewCsvBetProvider opens the CSV file and prepares a streaming reader.
+// It preloads the first bet so that HasNextBet() can be called immediately.
 func NewCsvBetProvider(clientId int) (*CsvBetProvider, error) {
 	file, err := os.Open(CSV_FILEPATH)
 	if err != nil {
@@ -228,6 +235,7 @@ func (p *CsvBetProvider) parseLine(line string) (Bet, error) {
 }
 
 // NextBet returns the current bet and advances to the next one.
+// If no bet is available, it returns nil and the last error encountered.
 func (p *CsvBetProvider) NextBet() (*Bet, error) {
 	if p.nextBet == nil {
 		return nil, p.nextBetErr
@@ -243,7 +251,7 @@ func (p *CsvBetProvider) HasNextBet() bool {
 	return p.nextBet != nil
 }
 
-// Close releases the file handle.
+// Close releases the file handle used by the provider.
 func (p *CsvBetProvider) Close() error {
 	return p.file.Close()
 }
