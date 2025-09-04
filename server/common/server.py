@@ -132,7 +132,7 @@ class Server:
             self.__process_batch_bet_registration(client_sock, message)
             return Server.CONTINUE_SAFE_TO_END
         elif isinstance(msg, MsgAck):
-            return Server.STOP
+            return Server.CONTINUE_SAFE_TO_END
         else:
             # Unknown message type → send failure response
             self._protocol.send_register_bets_failed(

@@ -93,13 +93,11 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 
-	c.SendFinalAck(ctx)
-
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-// confirm last message received to server
-func (c *Client) SendFinalAck(ctx context.Context) {
+// confirm message received to server
+func (c *Client) SendAck(ctx context.Context) {
 	err := c.protocol.SendAck(ctx)
 	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: sending_ack | result: fail")
@@ -178,6 +176,8 @@ func (c *Client) sendBatch(bets *[]Bet, betsBatchSize int, ctx context.Context) 
 	}
 
 	log.Infof("action: apuesta_enviada | result: success | cantidad: %v", len(*bets))
+
+	c.SendAck(ctx)
 
 	return CONTINUE
 }
