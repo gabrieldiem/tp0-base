@@ -29,6 +29,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
    1. [Sobre el Ejercicio N°4](#Sobre-el-Ejercicio-N4)
    1. [Sobre el Ejercicio N°5](#Sobre-el-Ejercicio-N5)
    1. [Sobre el Ejercicio N°6](#Sobre-el-Ejercicio-N6)
+   1. [Sobre el Ejercicio N°7](#Sobre-el-Ejercicio-N7)
 
 ## Instrucciones de uso
 
@@ -373,3 +374,5 @@ Hubo que ajustar el protocolo para enviar varias apuestas en un mismo mensaje. S
 | **RegisterBets**      | Cliente  | Servidor | Array de:<br> `AGENCIA: int`,<br> `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: int`,<br> `NUMERO: int` | Registrar un batch de apuestas                                                        |
 | **RegisterBetOk**     | Servidor | Cliente  |                                                                                                                                      | Informar que operación **RegisterBets** fue exitosa.                                  |
 | **RegisterBetFailed** | Servidor | Cliente  | `ERROR: int`                                                                                                                         | Informar que operación **RegisterBets** fue errónea.<br> Se provee un código de error |
+
+### Sobre el Ejercicio N°7
