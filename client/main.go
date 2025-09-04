@@ -103,7 +103,7 @@ func main() {
 	v, err := InitConfig()
 	if err != nil {
 		log.Criticalf("%s", err)
-		os.Exit(FAILED_TO_LOAD_CONFIG)
+		return
 	}
 
 	if err := InitLogger(v.GetString("log.level")); err != nil {
@@ -128,7 +128,7 @@ func main() {
 	csvBetProvider, err := common.NewCsvBetProvider(clientId)
 	if err != nil {
 		log.Criticalf("%s", err)
-		os.Exit(FAILED_TO_READ_BETS)
+		return
 	}
 
 	client := common.NewClient(clientConfig, csvBetProvider)

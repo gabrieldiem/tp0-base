@@ -54,7 +54,7 @@ def initialize_config() -> dict:
     return config_params
 
 
-def main() -> int:
+def main() -> None:
     """
     Returns the exit code where a non-zero exit code means there was an error
     """
@@ -82,16 +82,12 @@ def main() -> int:
 
         server.run()
 
-        return SUCCESS_CODE
-
     except Exception as e:
         # Get new logger to log error to ensure it isn't corrupted
         LoggerHandler.get_logger("ERROR").error(
             f"action: main | result: fail | error: {e}"
         )
-        return GENERIC_ERROR_CODE
 
 
 if __name__ == "__main__":
-    exit_code: int = main()
-    exit(exit_code)
+    main()
