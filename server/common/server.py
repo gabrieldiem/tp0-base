@@ -29,9 +29,8 @@ class Server:
     - Accept connections from multiple agencies (clients).
     - Handle bet registration requests (`MsgRegisterBets`).
     - Store bets in persistent storage.
-    - Acknowledge success/failure of bet registration.
-    - Track readiness state of each agency (sending, ready, waiting).
-    - Once all agencies are waiting, compute winners and send them back.
+    - Track readiness state of each agency (sending, ready, waiting, winners received).
+    - Once all agencies are ready, compute winners and send them back.
     - Handle graceful shutdown on stop.
     """
 
@@ -78,6 +77,7 @@ class Server:
         # Active client sockets
         self._clients: List[Socket] = []
 
+        # Winners storage
         self._winners: List[Tuple[int, int]] = []
         self._winners_per_agency: Dict[int, List[int]] = {}
 
@@ -113,6 +113,7 @@ class Server:
                     )
                 break
 
+            # Handle all sockets that are ready
             for sock in readable:
                 if sock is welcomming_socket:
                     # New incoming connection
@@ -194,29 +195,24 @@ class Server:
         Dispatch message and send response.
 
         - `MsgRegisterBets`: store bets, send OK/Fail → CONTINUE
-        - `MsgAck`: acknowledge → CONTINUE
-        - `MsgAllBetsSent`: mark agency ready → CONTINUE
-        - `MsgRequestWinners`: if all agencies waiting, send winners → CONTINUE_SAFE_TO_END
+        - `MsgAck`: acknowledge → CONTINUE (if lottery done, may end)
+        - `MsgAllBetsSent`: mark agency ready → CONTINUE (if all ready, run lottery)
+        - `MsgRequestWinners`: if lottery done, send winners → CONTINUE_SAFE_TO_END
         - Unknown: send failure → STOP
         """
         if isinstance(msg, MsgRegisterBets):
-            message: MsgRegisterBets = msg
+            # Client is sending bets
             agencyPort = client_sock.get_port()
-
-            # Mark agency as sending bets
             self._readiness_status[agencyPort] = Server.AGENCY_SENDING_BETS
-
-            # Map port → agency ID (from first bet)
             self._agency_id_by_port[agencyPort] = msg.get_bets()[0]._agency
 
-            # Process and store bets
-            self.__process_batch_bet_registration(client_sock, message)
+            self.__process_batch_bet_registration(client_sock, msg)
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAck):
+            # Client acknowledged last message
             if self.__lottery_occurred():
                 return Server.CONTINUE_SAFE_TO_END
-            
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAllBetsSent):
@@ -229,7 +225,7 @@ class Server:
                 self.__do_lottery()
                 self.__inform_winners_to_waiting_agencies()
                 return Server.CONTINUE_SAFE_TO_END
-            
+
             return Server.CONTINUE
 
         elif isinstance(msg, MsgRequestWinners):
@@ -238,6 +234,7 @@ class Server:
             self._readiness_status[agencyPort] = Server.AGENCY_WAITING_FOR_LOTTERY
 
             if self.__lottery_occurred():
+                # Lottery already done → send winners
                 self.__inform_winners_to_waiting_agencies()
                 return Server.CONTINUE_SAFE_TO_END
             else:
@@ -258,12 +255,14 @@ class Server:
             return Server.STOP
 
     def __lottery_occurred(self) -> bool:
+        """Return True if winners have already been computed."""
         return len(self._winners) > 0
 
     def __all_agencies_ready(self) -> bool:
         """
-        Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
+        Return True if all agencies are connected and none are still sending bets.
         """
+
         # Ensure all expected agencies are connected
         are_all_agencies_connected = len(self._clients) == self._max_agencies
         if not are_all_agencies_connected:
@@ -276,25 +275,9 @@ class Server:
 
         return True
 
-    def __all_agencies_have_winners(self) -> bool:
-        """
-        Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
-        """
-        # Ensure all expected agencies are connected
-        are_all_agencies_connected = len(self._clients) == self._max_agencies
-        if not are_all_agencies_connected:
-            return False
-
-        # Check readiness state of all agencies
-        for status in self._readiness_status.values():
-            if status != Server.AGENCY_GOT_LOTTERY_WINNERS:
-                return False
-
-        return True
-
     def __do_lottery(self):
         """
-        Compute winners
+        Compute winners and group them by agency.
         """
         bets: List[Bet] = load_bets()
 
@@ -313,7 +296,7 @@ class Server:
 
     def __inform_winners_to_waiting_agencies(self):
         """
-        Send winners them to each connected agency.
+        Send winners to each connected agency that is waiting for them.
         """
 
         # Send winners to each connected client
@@ -327,8 +310,11 @@ class Server:
 
                 if agencyId:
                     dni_winners = self._winners_per_agency.get(agencyId, [])
-                    self._logger.info(f"action: inform_winners | result: success | client: {agencyId}")
+                    self._logger.info(
+                        f"action: inform_winners | result: success | client: {agencyId}"
+                    )
                     self._protocol.inform_winners(client, dni_winners)
+                    # Mark agency as having received winners
                     self._readiness_status[agencyPort] = (
                         Server.AGENCY_GOT_LOTTERY_WINNERS
                     )
