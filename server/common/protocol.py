@@ -1,12 +1,13 @@
 from common.socket import Socket
 from logging import Logger
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from common.messages import Message
 
 from common.messages import (
     Message,
     MsgRegisterBetOk,
     MsgRegisterBetFailed,
+    MsgInformWinners,
 )
 
 
@@ -110,6 +111,10 @@ class Protocol:
             Error code indicating the reason for failure.
         """
         msg: MsgRegisterBetFailed = MsgRegisterBetFailed(failure_reason)
+        client_sock.send_message(msg)
+
+    def inform_winners(self, client_sock: Socket, dni_winners: List[int]) -> None:
+        msg: MsgInformWinners = MsgInformWinners(dni_winners)
         client_sock.send_message(msg)
 
     def shutdown(self) -> None:

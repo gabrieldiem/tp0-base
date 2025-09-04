@@ -7,6 +7,9 @@ MSG_TYPE_REGISTER_BETS = 1
 MSG_TYPE_REGISTER_BET_OK = 2
 MSG_TYPE_REGISTER_BET_FAILED = 3
 MSG_TYPE_ACK = 4
+MSG_TYPE_ALL_BETS_SENT = 5
+MSG_TYPE_REQUEST_WINNERS = 6
+MSG_TYPE_INFORM_WINNERS = 7
 
 # Sizes of primitive types in bytes
 SIZEOF_UINT16 = 2
@@ -307,3 +310,89 @@ class MsgRegisterBetFailed(Message):
 
     def __str__(self) -> str:
         return f"MsgRegisterBetFailed(error_code={self._error_code})"
+
+
+class MsgAllBetsSent(Message):
+    def __init__(self):
+        self._msg_type = MSG_TYPE_ALL_BETS_SENT
+
+    def to_bytes(
+        self, character_encoding: str, endianness: Literal["big", "little"]
+    ) -> bytes:
+        """
+        Serialize the message into binary format.
+        """
+        header: bytes = self._msg_type.to_bytes(
+            SIZEOF_UINT16,
+            endianness,
+        )
+        return header
+
+    def __str__(self) -> str:
+        return f"MsgAllBetsSent()"
+
+
+class MsgRequestWinners(Message):
+    def __init__(self):
+        self._msg_type = MSG_TYPE_REQUEST_WINNERS
+
+    def to_bytes(
+        self, character_encoding: str, endianness: Literal["big", "little"]
+    ) -> bytes:
+        """
+        Serialize the message into binary format.
+        """
+        header: bytes = self._msg_type.to_bytes(
+            SIZEOF_UINT16,
+            endianness,
+        )
+        return header
+
+    def __str__(self) -> str:
+        return f"MsgRequestWinners()"
+
+
+from typing import List, Literal
+
+
+class MsgInformWinners(Message):
+    """
+    Server → Client message: inform winners.
+
+    Payload format:
+        [2 bytes msg_type]
+        [8 bytes number_of_dni_winners]
+        [4 bytes dni_winner_1]
+        [4 bytes dni_winner_2]
+        ...
+    """
+
+    def __init__(self, dni_winners: List[int]):
+        self._msg_type = MSG_TYPE_INFORM_WINNERS
+        self._dni_winners: List[int] = dni_winners
+
+    def to_bytes(
+        self, character_encoding: str, endianness: Literal["big", "little"]
+    ) -> bytes:
+        """
+        Serialize the message into binary format.
+        """
+        payload: bytes = b""
+
+        # Write msg_type (2 bytes)
+        payload += self._msg_type.to_bytes(SIZEOF_UINT16, endianness)
+
+        # Write number_of_dni_winners (8 bytes)
+        payload += len(self._dni_winners).to_bytes(SIZEOF_UINT64, endianness)
+
+        # Write each dni_winner (4 bytes each)
+        for dni in self._dni_winners:
+            payload += int(dni).to_bytes(SIZEOF_UINT32, endianness)
+
+        return payload
+
+    def __str__(self) -> str:
+        return f"MsgInformWinners(dni_winners={self._dni_winners})"
+
+    def get_dni_winners(self) -> List[int]:
+        return self._dni_winners

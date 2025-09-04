@@ -6,8 +6,12 @@ from common.messages import (
     StandardBet,
     MSG_TYPE_REGISTER_BETS,
     MSG_TYPE_ACK,
+    MSG_TYPE_ALL_BETS_SENT,
+    MSG_TYPE_REQUEST_WINNERS,
     MsgRegisterBets,
     MsgAck,
+    MsgAllBetsSent,
+    MsgRequestWinners,
     SIZEOF_UINT16,
     SIZEOF_UINT32,
     SIZEOF_UINT64,
@@ -279,6 +283,10 @@ class Socket:
             return MsgRegisterBets(bets)
         elif msg_type == MSG_TYPE_ACK:
             return MsgAck()
+        elif msg_type == MSG_TYPE_ALL_BETS_SENT:
+            return MsgAllBetsSent()
+        elif msg_type == MSG_TYPE_REQUEST_WINNERS:
+            return MsgRequestWinners()
 
         # Unknown message type
         raise ValueError(f"Unknown msg_type {msg_type}")

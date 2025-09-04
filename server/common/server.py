@@ -2,13 +2,16 @@ from logging import Logger
 from common.protocol import Protocol
 from common.socket import Socket
 from typing import Tuple, Optional, List
-from common.utils import Bet, store_bets
+from common.utils import Bet, store_bets, load_bets, has_won
+import select
 
 from common.messages import (
     Message,
     MsgRegisterBets,
     StandardBet,
     MsgAck,
+    MsgAllBetsSent,
+    MsgRequestWinners,
     FAILURE_UNKNOWN_MESSAGE,
     FAILURE_COULD_NOT_PROCESS_BET,
 )
@@ -28,6 +31,8 @@ class Server:
     The server runs in a loop until explicitly stopped, ensuring
     clean shutdown of sockets and proper logging of all events.
     """
+
+    MAX_CLIENTS = 5
 
     STOP = 0
     CONTINUE = 1
@@ -54,70 +59,107 @@ class Server:
 
     def run(self) -> None:
         """
-        Start the main server loop.
-
-        Continuously accepts new client connections and handles them
-        one at a time. For each connection, the server receives a
-        protocol message, processes it, and sends an appropriate
-        response. The loop stops when the server is explicitly
-        stopped or the listening socket is closed.
+        Start the main server loop with select-based multiplexing.
+        Handles up to MAX_CLIENTS clients concurrently in a single thread.
         """
         self._running = True
-        self._logger.info(f"action: starting_loop | result: success")
+        self._logger.info("action: starting_loop | result: success")
 
         if self._stopped:
             return
 
+        # List of active client sockets
+        clients: List[Socket] = []
+
+        # Get the raw listening socket
+        listen_sock = self._protocol._socket._socket  # underlying std socket
+
         while self._running:
-            addr, client_sock = self._protocol.accept_new_connection()
+            # Build the read set: listening socket + all client sockets
+            read_sockets = [listen_sock] + [c._socket for c in clients]
 
-            if not client_sock:
-                break
-            self._client = client_sock
+            # Wait for activity (blocking until something happens)
+            readable, _, _ = select.select(read_sockets, [], [])
 
-            self.__handle_client_connection(self._client, addr)
+            for sock in readable:
+                if sock is listen_sock:
+                    # New connection
+                    if len(clients) >= Server.MAX_CLIENTS:
+                        self._logger.warning(
+                            "action: accept_connections | result: fail | reason: max_clients_reached"
+                        )
+                        client_sock, addr = listen_sock.accept()
+                        client_sock.close()  # reject new connection
+                        continue
 
-    def __handle_client_connection(
-        self, client_sock: Socket, client_addr: Tuple[str, int]
-    ) -> None:
-        """
-        Handle a single client connection.
-
-        Reads messages from the client in a loop, logs them, and
-        dispatches them to the appropriate handler. If the message
-        is a valid `MsgRegisterBets`, it is converted into `Bet`
-        objects and stored. If it's a `MsgAck`, the connection is
-        closed gracefully. Otherwise, a failure response is sent.
-
-        Parameters
-        ----------
-        client_sock : Socket
-            The client socket for communication.
-        client_addr : Tuple[str, int]
-            The client address (IP, port).
-        """
-        keep_handling_client: int = Server.CONTINUE
-
-        while keep_handling_client in [Server.CONTINUE, Server.CONTINUE_SAFE_TO_END]:
-            try:
-                msg: Message = self._protocol.receive_message(client_sock)
-                self._logger.info(
-                    f"action: receive_message | result: success | ip: {client_addr[0]} | msg: {msg}"
-                )
-
-                if self._running:
-                    keep_handling_client = self.send_message_response(client_sock, msg)
-
-            except (ConnectionError, ValueError, OSError) as e:
-                if keep_handling_client != Server.CONTINUE_SAFE_TO_END:
-                    self._logger.error(
-                        f"action: receive_message | result: fail | error: {e}"
+                    addr, client_socket = self._protocol._socket.accept()
+                    self._logger.info(
+                        f"action: accept_connections | result: success | ip: {addr[0]}"
                     )
+                    clients.append(client_socket)
 
-                keep_handling_client = Server.STOP
-                break
+                else:
+                    # Existing client sent data
+                    client = next(c for c in clients if c._socket is sock)
+                    try:
+                        msg = client.receive_message()
+                        self._logger.info(
+                            f"action: receive_message | result: success | msg: {msg}"
+                        )
 
-        self._protocol.shutdown_socket(client_sock)
+                        keep = self.send_message_response(client, msg)
+                        if keep == Server.STOP:
+                            self._protocol.shutdown_socket(client)
+                            clients.remove(client)
+
+                    except (ConnectionError, ValueError, OSError) as e:
+                        self._logger.error(
+                            f"action: receive_message | result: fail | error: {e}"
+                        )
+                        self._protocol.shutdown_socket(client)
+                        clients.remove(client)
+
+    # def __handle_client_connection(
+    #     self, client_sock: Socket, client_addr: Tuple[str, int]
+    # ) -> None:
+    #     """
+    #     Handle a single client connection.
+
+    #     Reads messages from the client in a loop, logs them, and
+    #     dispatches them to the appropriate handler. If the message
+    #     is a valid `MsgRegisterBets`, it is converted into `Bet`
+    #     objects and stored. If it's a `MsgAck`, the connection is
+    #     closed gracefully. Otherwise, a failure response is sent.
+
+    #     Parameters
+    #     ----------
+    #     client_sock : Socket
+    #         The client socket for communication.
+    #     client_addr : Tuple[str, int]
+    #         The client address (IP, port).
+    #     """
+    #     keep_handling_client: int = Server.CONTINUE
+
+    #     while keep_handling_client in [Server.CONTINUE, Server.CONTINUE_SAFE_TO_END]:
+    #         try:
+    #             msg: Message = self._protocol.receive_message(client_sock)
+    #             self._logger.info(
+    #                 f"action: receive_message | result: success | ip: {client_addr[0]} | msg: {msg}"
+    #             )
+
+    #             if self._running:
+    #                 keep_handling_client = self.send_message_response(client_sock, msg)
+
+    #         except (ConnectionError, ValueError, OSError) as e:
+    #             if keep_handling_client != Server.CONTINUE_SAFE_TO_END:
+    #                 self._logger.error(
+    #                     f"action: receive_message | result: fail | error: {e}"
+    #                 )
+
+    #             keep_handling_client = Server.STOP
+    #             break
+
+    #     self._protocol.shutdown_socket(client_sock)
 
     def send_message_response(self, client_sock: Socket, msg: Message) -> int:
         """
@@ -130,9 +172,15 @@ class Server:
         if isinstance(msg, MsgRegisterBets):
             message: MsgRegisterBets = msg
             self.__process_batch_bet_registration(client_sock, message)
-            return Server.CONTINUE_SAFE_TO_END
+            return Server.CONTINUE
         elif isinstance(msg, MsgAck):
             return Server.CONTINUE_SAFE_TO_END
+        elif isinstance(msg, MsgAllBetsSent):
+            return Server.CONTINUE_SAFE_TO_END
+            # Mark done
+        elif isinstance(msg, MsgRequestWinners):
+            self.__process_winners_request(client_sock)
+            return Server.CONTINUE
         else:
             # Unknown message type → send failure response
             self._protocol.send_register_bets_failed(
@@ -140,6 +188,16 @@ class Server:
             )
             self._logger.error(f"action: mensaje_desconocido | result: fail")
             return Server.STOP
+
+    def __process_winners_request(self, client_sock: Socket):
+        bets: List[Bet] = load_bets()
+        dni_winners: List[int] = []
+
+        for bet in bets:
+            if has_won(bet):
+                dni_winners.append(int(bet.document))
+
+        self._protocol.inform_winners(client_sock, dni_winners)
 
     def __process_batch_bet_registration(
         self, client_sock: Socket, msg: MsgRegisterBets
