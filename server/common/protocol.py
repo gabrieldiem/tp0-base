@@ -59,7 +59,7 @@ class Protocol:
         try:
             addr, client_socket = self._socket.accept()
             self._logger.info(
-                f"action: accept_connections | result: success | ip: {addr[0]}"
+                f"action: accept_connections | result: success | ip: {addr[0]}:{addr[1]}"
             )
             return addr, client_socket
         except OSError:

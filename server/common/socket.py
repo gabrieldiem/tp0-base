@@ -84,7 +84,7 @@ class Socket:
         try:
             self._socket.shutdown(socket.SHUT_RDWR)
             self._socket.close()
-        except OSError:
+        except (OSError, IOError):
             pass
 
     def accept(self) -> Tuple[Tuple[str, int], "Socket"]:
@@ -294,3 +294,5 @@ class Socket:
     def get_socket(self) -> StdSocket: 
         return self._socket
 
+    def get_port(self) -> int:
+        return self._socket.getpeername()[1]

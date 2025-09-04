@@ -85,7 +85,7 @@ def main() -> None:
     except Exception as e:
         # Get new logger to log error to ensure it isn't corrupted
         LoggerHandler.get_logger("ERROR").error(
-            f"action: main | result: fail | error: {e}"
+            f"action: main | result: fail | error: {e.__class__}:{e}"
         )
 
 
