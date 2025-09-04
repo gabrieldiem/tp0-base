@@ -180,14 +180,15 @@ class Server:
 
         except (ConnectionError, ValueError, OSError) as e:
             # If error occurs, close client connection
-            if keep_handling_client == Server.CONTINUE_SAFE_TO_END:
+            print("keep_handling_client: ", keep_handling_client)
+            if keep_handling_client != Server.CONTINUE_SAFE_TO_END:
                 self._logger.error(
                     f"action: receive_message | result: fail | error: {e}"
                 )
 
             self._protocol.shutdown_socket(client)
             self._clients.remove(client)
-            return Server.CONTINUE
+            return keep_handling_client
 
     def send_message_response(self, client_sock: Socket, msg: Message) -> int:
         """
@@ -214,6 +215,9 @@ class Server:
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAck):
+            if self.__lottery_occurred():
+                return Server.CONTINUE_SAFE_TO_END
+            
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAllBetsSent):
@@ -225,7 +229,8 @@ class Server:
                 # All agencies ready → compute and send winners
                 self.__do_lottery()
                 self.__inform_winners_to_waiting_agencies()
-
+                return Server.CONTINUE_SAFE_TO_END
+            
             return Server.CONTINUE
 
         elif isinstance(msg, MsgRequestWinners):
@@ -235,11 +240,7 @@ class Server:
 
             if self.__lottery_occurred():
                 self.__inform_winners_to_waiting_agencies()
-
-                if self.__all_agencies_have_winners():
-                    return Server.CONTINUE_SAFE_TO_END
-                else:
-                    return Server.CONTINUE
+                return Server.CONTINUE_SAFE_TO_END
             else:
                 # Not all agencies ready yet
                 agency = self._agency_id_by_port.get(agencyPort)
@@ -327,6 +328,7 @@ class Server:
 
                 if agencyId:
                     dni_winners = self._winners_per_agency.get(agencyId, [])
+                    self._logger.info(f"action: inform_winners | result: success | client: {agencyId}")
                     self._protocol.inform_winners(client, dni_winners)
                     self._readiness_status[agencyPort] = (
                         Server.AGENCY_GOT_LOTTERY_WINNERS
