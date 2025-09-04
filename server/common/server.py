@@ -1,9 +1,10 @@
 from logging import Logger
 from common.protocol import Protocol
 from common.socket import Socket
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict
 from common.utils import Bet, store_bets, load_bets, has_won
 import select
+from socket import socket as StdSocket
 
 from common.messages import (
     Message,
@@ -32,11 +33,14 @@ class Server:
     clean shutdown of sockets and proper logging of all events.
     """
 
-    MAX_CLIENTS = 5
+    MAX_AGENCIES = 5
 
     STOP = 0
     CONTINUE = 1
     CONTINUE_SAFE_TO_END = 2
+
+    AGENCY_SENDING_BETS = 1
+    AGENCY_READY_FOR_LOTTERY = 2
 
     def __init__(self, port: int, listen_backlog: int, logger: Logger):
         """
@@ -56,6 +60,12 @@ class Server:
         self._running: bool = False
         self._stopped: bool = False
         self._client: Optional[Socket] = None
+        self._readiness_status = {}   
+        
+        for i in range(Server.MAX_AGENCIES):
+            self._readiness_status[i+1] = Server.AGENCY_SENDING_BETS
+
+        self._clients: List[Socket] = []
 
     def run(self) -> None:
         """
@@ -67,40 +77,23 @@ class Server:
 
         if self._stopped:
             return
-
-        # List of active client sockets
-        clients: List[Socket] = []
-
-        # Get the raw listening socket
-        listen_sock = self._protocol._socket._socket  # underlying std socket
+        
+        welcomming_socket = self._protocol.get_socket()
 
         while self._running:
             # Build the read set: listening socket + all client sockets
-            read_sockets = [listen_sock] + [c._socket for c in clients]
+            read_sockets = [welcomming_socket] + [c.get_socket() for c in self._clients]
 
             # Wait for activity (blocking until something happens)
             readable, _, _ = select.select(read_sockets, [], [])
 
             for sock in readable:
-                if sock is listen_sock:
-                    # New connection
-                    if len(clients) >= Server.MAX_CLIENTS:
-                        self._logger.warning(
-                            "action: accept_connections | result: fail | reason: max_clients_reached"
-                        )
-                        client_sock, addr = listen_sock.accept()
-                        client_sock.close()  # reject new connection
-                        continue
-
-                    addr, client_socket = self._protocol._socket.accept()
-                    self._logger.info(
-                        f"action: accept_connections | result: success | ip: {addr[0]}"
-                    )
-                    clients.append(client_socket)
+                if sock is welcomming_socket:
+                    self.__handle_new_connection(welcomming_socket)
 
                 else:
                     # Existing client sent data
-                    client = next(c for c in clients if c._socket is sock)
+                    client = next(c for c in self._clients if c.get_socket() is sock)
                     try:
                         msg = client.receive_message()
                         self._logger.info(
@@ -110,14 +103,32 @@ class Server:
                         keep = self.send_message_response(client, msg)
                         if keep == Server.STOP:
                             self._protocol.shutdown_socket(client)
-                            clients.remove(client)
+                            self._clients.remove(client)
 
                     except (ConnectionError, ValueError, OSError) as e:
                         self._logger.error(
                             f"action: receive_message | result: fail | error: {e}"
                         )
                         self._protocol.shutdown_socket(client)
-                        clients.remove(client)
+                        self._clients.remove(client)
+            
+    def __handle_new_connection(self, welcomming_socket: StdSocket) -> None:
+        if len(self._clients) >= Server.MAX_AGENCIES:
+            self._logger.warning(
+                "action: accept_connections | result: fail | reason: max_clients_reached"
+            )
+            addr, client_socket = welcomming_socket.accept()
+            client_socket.shutdown()  # reject new connection
+            return
+
+        addr, client_socket = self._protocol.accept_new_connection()
+        self._logger.info(
+            f"action: accept_connections | result: success | ip: {addr[0]}"
+        )
+        if client_socket:
+            self._clients.append(client_socket)
+        
+        
 
     # def __handle_client_connection(
     #     self, client_sock: Socket, client_addr: Tuple[str, int]

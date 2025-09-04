@@ -290,3 +290,7 @@ class Socket:
 
         # Unknown message type
         raise ValueError(f"Unknown msg_type {msg_type}")
+
+    def get_socket(self) -> StdSocket: 
+        return self._socket
+

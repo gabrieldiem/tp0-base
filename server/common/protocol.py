@@ -1,3 +1,4 @@
+from socket import socket as StdSocket
 from common.socket import Socket
 from logging import Logger
 from typing import Optional, Tuple, List
@@ -140,3 +141,6 @@ class Protocol:
         """
         a_socket.shutdown()
         self._logger.info("action: client_connection_socket_closed  | result: success")
+
+    def get_socket(self) -> StdSocket:
+        return self._socket.get_socket()
