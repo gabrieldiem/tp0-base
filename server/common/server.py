@@ -180,7 +180,6 @@ class Server:
 
         except (ConnectionError, ValueError, OSError) as e:
             # If error occurs, close client connection
-            print("keep_handling_client: ", keep_handling_client)
             if keep_handling_client != Server.CONTINUE_SAFE_TO_END:
                 self._logger.error(
                     f"action: receive_message | result: fail | error: {e}"
