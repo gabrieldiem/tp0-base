@@ -69,13 +69,15 @@ func (c *Client) StartClientLoop() {
 		cancel()
 	}()
 
+	var pendingBet *Bet = nil
+
 	for loop == CONTINUE {
 		err := c.protocol.Init()
 		if err != nil {
 			return
 		}
 
-		loop = c.processBatch(ctx)
+		loop = c.processBatch(&pendingBet, ctx)
 		c.resourceCleanup()
 
 		if !c.betProvider.HasNextBet() {
@@ -86,27 +88,35 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-func (c *Client) processBatch(ctx context.Context) int {
+func (c *Client) processBatch(pendingBet **Bet, ctx context.Context) int {
 	canGroup := true
-	var bets []Bet
-	var betsBatchSize int = 0
+	var bets []Bet = []Bet{}
+	var betsBatchSizeInBytes int = 0
+
+	if *pendingBet != nil {
+		bets = append(bets, **pendingBet)
+		*pendingBet = nil
+	}
 
 	for c.betProvider.HasNextBet() && canGroup {
 		bet, err := c.betProvider.NextBet()
-		canGroup = c.protocol.CanGroupBet(len(bets), bet, &betsBatchSize)
 
 		if err != nil {
 			log.Criticalf("action: loop_finished | result: fail | error: %s", bet.Dni, bet.Number, err)
 			return STOP
 		}
 
+		canGroup = c.protocol.CanGroupBet(len(bets), bet, &betsBatchSizeInBytes)
+
 		if canGroup {
 			bets = append(bets, *bet)
+		} else {
+			*pendingBet = bet
 		}
 	}
 
 	if len(bets) > 0 {
-		return c.sendBatch(&bets, betsBatchSize, ctx)
+		return c.sendBatch(&bets, betsBatchSizeInBytes, ctx)
 	}
 
 	return STOP
