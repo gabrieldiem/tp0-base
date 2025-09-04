@@ -77,6 +77,10 @@ func (c *Client) StartClientLoop() {
 
 		loop = c.processBatch(ctx)
 		c.resourceCleanup()
+
+		if !c.betProvider.HasNextBet() {
+			break
+		}
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
@@ -101,7 +105,11 @@ func (c *Client) processBatch(ctx context.Context) int {
 		}
 	}
 
-	return c.sendBatch(&bets, betsBatchSize, ctx)
+	if len(bets) > 0 {
+		return c.sendBatch(&bets, betsBatchSize, ctx)
+	}
+
+	return STOP
 }
 
 func (c *Client) sendBatch(bets *[]Bet, betsBatchSize int, ctx context.Context) int {
