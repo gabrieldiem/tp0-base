@@ -1,12 +1,12 @@
-import multiprocessing
+from multiprocessing import Manager, Lock, Event
 from typing import Dict, List, Tuple
 from common.utils import Bet, store_bets, load_bets, has_won
 
 
 class LotteryMonitor:
     def __init__(self):
-        manager = multiprocessing.Manager()
-        self._lock = multiprocessing.Lock()
+        manager = Manager()
+        self._lock = Lock()
 
         # Manager-backed shared objects
         self._readiness_status = manager.dict()  # port → state
@@ -16,7 +16,7 @@ class LotteryMonitor:
         self._lottery_executed = manager.Value("b", False)  # boolean flag
 
         # Event to notify all processes when lottery is complete
-        self._lottery_complete_event = multiprocessing.Event()
+        self._lottery_complete_event = Event()
 
     # -------------------------
     # Readiness state

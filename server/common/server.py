@@ -108,11 +108,16 @@ class Server:
         """
         Run in a separate process: handle all communication with a single client.
         """
-        self._logger.info(f"action: client_handler_started | result: success | client: {addr[0]}:{addr[1]}")
-        
+        self._logger.info(
+            f"action: client_handler_started | result: success | client: {addr[0]}:{addr[1]}"
+        )
+
         try:
             keep_handling_client = Server.CONTINUE
-            while keep_handling_client != Server.STOP and not self._shutdown_event.is_set():
+            while (
+                keep_handling_client != Server.STOP
+                and not self._shutdown_event.is_set()
+            ):
                 try:
                     msg = client_sock.receive_message()
                     self._logger.info(
@@ -146,14 +151,19 @@ class Server:
                                 keep_handling_client = Server.STOP
 
                 except (ConnectionError, ValueError, OSError) as e:
-                    if keep_handling_client != Server.CONTINUE_SAFE_TO_END and not self._shutdown_event.is_set():
+                    if (
+                        keep_handling_client != Server.CONTINUE_SAFE_TO_END
+                        and not self._shutdown_event.is_set()
+                    ):
                         self._logger.error(
                             f"action: receive_message | result: fail | error: {e} | client: {addr[0]}:{addr[1]}"
                         )
                     break
         finally:
             self._protocol.shutdown_socket(client_sock)
-            self._logger.info(f"action: client_handler_stopped | result: success | client: {addr[0]}:{addr[1]}")
+            self._logger.info(
+                f"action: client_handler_stopped | result: success | client: {addr[0]}:{addr[1]}"
+            )
 
     def __send_message_response(
         self, client_sock: Socket, msg: Message, lottery_monitor: LotteryMonitor
@@ -284,17 +294,16 @@ class Server:
         bets: List[Bet] = [bet.to_utility_bet() for bet in standard_bets]
         return lottery_monitor.store_bets(bets)
 
-
     def stop(self) -> None:
         self._running = False
         if self._stopped:
             return
-        
+
         # Signal all child processes to shutdown gracefully
         self._shutdown_event.set()
-        
+
         self._protocol.shutdown()
-        
+
         # Give processes time to shutdown gracefully
         for p in self._processes:
             p.join(timeout=5.0)  # Wait up to 5 seconds
@@ -302,5 +311,5 @@ class Server:
                 self._logger.warning(f"Force terminating process {p.pid}")
                 p.terminate()
                 p.join()
-        
+
         self._stopped = True
