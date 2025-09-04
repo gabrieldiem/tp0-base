@@ -60,13 +60,6 @@ func (c *Client) StartClientLoop() {
 	defer signal.Stop(c.signalChannel)
 	defer c.flushLogs()
 
-	err := c.protocol.Init()
-	if err != nil {
-		return
-	}
-
-	defer c.resourceCleanup()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -76,34 +69,49 @@ func (c *Client) StartClientLoop() {
 		cancel()
 	}()
 
-	var bets []Bet
-	var betsBatchSize int = 0
-
-	for c.betProvider.HasNextBet() && loop == CONTINUE {
-		bet, err := c.betProvider.NextBet()
-
+	for loop == CONTINUE {
+		err := c.protocol.Init()
 		if err != nil {
-			log.Criticalf("action: loop_finished | result: fail | error: %s", bet.Dni, bet.Number, err)
 			return
 		}
 
-		loop = c.runIteration(&bets, &betsBatchSize, bet, ctx)
+		loop = c.processBatch(ctx)
+		c.resourceCleanup()
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-// runIteration sends a bet, waits for a response, and logs the result.
-// It returns STOP if an error occurs, otherwise CONTINUE.
-func (c *Client) runIteration(bets *[]Bet, betsBatchSize *int, bet *Bet, ctx context.Context) int {
-	if c.protocol.CanGroupBet(len(*bets), bet, betsBatchSize) {
-		*bets = append(*bets, *bet)
-		return CONTINUE
+func (c *Client) processBatch(ctx context.Context) int {
+	canGroup := true
+	var bets []Bet
+	var betsBatchSize int = 0
+
+	for c.betProvider.HasNextBet() && canGroup {
+		bet, err := c.betProvider.NextBet()
+		canGroup = c.protocol.CanGroupBet(len(bets), bet, &betsBatchSize)
+
+		if err != nil {
+			log.Criticalf("action: loop_finished | result: fail | error: %s", bet.Dni, bet.Number, err)
+			return STOP
+		}
+
+		if canGroup {
+			bets = append(bets, *bet)
+		}
 	}
 
-	err := c.protocol.RegisterBets(bets, *betsBatchSize, ctx)
-	if err != nil {
+	return c.sendBatch(&bets, betsBatchSize, ctx)
+}
+
+func (c *Client) sendBatch(bets *[]Bet, betsBatchSize int, ctx context.Context) int {
+	err := c.protocol.RegisterBets(bets, betsBatchSize, ctx)
+	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: apuesta_enviada | result: fail | cantidad: %v | error: %s", len(*bets), err)
+		return STOP
+	}
+
+	if ctx.Err() != nil {
 		return STOP
 	}
 
