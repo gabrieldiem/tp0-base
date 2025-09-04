@@ -118,6 +118,9 @@ func (c *Client) requestWinners(ctx context.Context) {
 	}
 
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(dniWinners))
+	log.Infof("action: info_consulta_ganadores | result: success | ganadores: %v", dniWinners)
+
+	c.SendAck(ctx)
 }
 
 func (c *Client) informAllBetsSent(ctx context.Context) {
