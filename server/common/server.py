@@ -130,7 +130,7 @@ class Server:
                         # If this client is waiting for lottery, wait for completion and send winners
                         if current_state == Server.AGENCY_WAITING_FOR_LOTTERY:
                             self._logger.info(
-                                f"action: waiting_for_lottery | client: {addr[0]}:{addr[1]}"
+                                f"action: waiting_for_lottery | result: in_progress | client: {addr[0]}:{addr[1]}"
                             )
 
                             # Wait for lottery to complete (with timeout to avoid infinite wait)
