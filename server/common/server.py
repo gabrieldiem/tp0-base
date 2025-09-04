@@ -226,7 +226,7 @@ class Server:
                 self.__do_lottery()
                 self.__inform_winners_to_waiting_agencies()
 
-            return Server.CONTINUE_SAFE_TO_END
+            return Server.CONTINUE
 
         elif isinstance(msg, MsgRequestWinners):
             # Agency requests winners
@@ -238,7 +238,8 @@ class Server:
 
                 if self.__all_agencies_have_winners():
                     return Server.CONTINUE_SAFE_TO_END
-                
+                else:
+                    return Server.CONTINUE
             else:
                 # Not all agencies ready yet
                 agency = self._agency_id_by_port.get(agencyPort)
