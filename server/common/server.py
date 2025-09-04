@@ -108,7 +108,7 @@ class Server:
         """
         Run in a separate process: handle all communication with a single client.
         """
-        self._logger.info(f"action: client_handler_started | client: {addr}")
+        self._logger.info(f"action: client_handler_started | client: {addr[0]}:{addr[1]}")
         
         try:
             keep_handling_client = Server.CONTINUE
@@ -116,7 +116,7 @@ class Server:
                 try:
                     msg = client_sock.receive_message()
                     self._logger.info(
-                        f"action: receive_message | result: success | msg: {msg} | client: {addr}"
+                        f"action: receive_message | result: success | msg: {msg} | client: {addr[0]}:{addr[1]}"
                     )
                     keep_handling_client = self.__send_message_response(
                         client_sock, msg, lottery_monitor
@@ -130,7 +130,7 @@ class Server:
                         # If this client is waiting for lottery, wait for completion and send winners
                         if current_state == Server.AGENCY_WAITING_FOR_LOTTERY:
                             self._logger.info(
-                                f"action: waiting_for_lottery | client: {addr}"
+                                f"action: waiting_for_lottery | client: {addr[0]}:{addr[1]}"
                             )
 
                             # Wait for lottery to complete (with timeout to avoid infinite wait)
@@ -141,19 +141,19 @@ class Server:
                                 keep_handling_client = Server.CONTINUE_SAFE_TO_END
                             else:
                                 self._logger.error(
-                                    f"action: lottery_timeout | client: {addr}"
+                                    f"action: lottery_timeout | client: {addr[0]}:{addr[1]}"
                                 )
                                 keep_handling_client = Server.STOP
 
                 except (ConnectionError, ValueError, OSError) as e:
                     if keep_handling_client != Server.CONTINUE_SAFE_TO_END and not self._shutdown_event.is_set():
                         self._logger.error(
-                            f"action: receive_message | result: fail | error: {e} | client: {addr}"
+                            f"action: receive_message | result: fail | error: {e} | client: {addr[0]}:{addr[1]}"
                         )
                     break
         finally:
             self._protocol.shutdown_socket(client_sock)
-            self._logger.info(f"action: client_handler_stopped | client: {addr}")
+            self._logger.info(f"action: client_handler_stopped | client: {addr[0]}:{addr[1]}")
 
     def __send_message_response(
         self, client_sock: Socket, msg: Message, lottery_monitor: LotteryMonitor
