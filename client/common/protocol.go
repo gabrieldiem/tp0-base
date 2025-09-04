@@ -80,6 +80,12 @@ func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.C
 	return err
 }
 
+// // confirm last message received to server
+func (p *BetProtocol) SendAck(ctx context.Context) error {
+	log.Infof("action: sending_ack | result: in_progress")
+	return p.socket.SendMessage(NewMsgAck(), ctx)
+}
+
 // CanGroupBet checks if adding `bet` to the current batch of bets
 // would keep the total binary size under the maximum allowed batch size (8KB).
 //

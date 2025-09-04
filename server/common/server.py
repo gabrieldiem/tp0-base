@@ -8,6 +8,7 @@ from common.messages import (
     Message,
     MsgRegisterBets,
     StandardBet,
+    MsgAck,
     FAILURE_UNKNOWN_MESSAGE,
     FAILURE_COULD_NOT_PROCESS_BET,
 )
@@ -27,6 +28,10 @@ class Server:
     The server runs in a loop until explicitly stopped, ensuring
     clean shutdown of sockets and proper logging of all events.
     """
+
+    STOP = 0
+    CONTINUE = 1
+    CONTINUE_SAFE_TO_END = 2
 
     def __init__(self, port: int, listen_backlog: int, logger: Logger):
         """
@@ -78,10 +83,11 @@ class Server:
         """
         Handle a single client connection.
 
-        Reads a message from the client, logs it, and dispatches it
-        to the appropriate handler. If the message is a valid
-        `MsgRegisterBets`, it is converted into `Bet` objects and stored.
-        Otherwise, a failure response is sent.
+        Reads messages from the client in a loop, logs them, and
+        dispatches them to the appropriate handler. If the message
+        is a valid `MsgRegisterBets`, it is converted into `Bet`
+        objects and stored. If it's a `MsgAck`, the connection is
+        closed gracefully. Otherwise, a failure response is sent.
 
         Parameters
         ----------
@@ -90,46 +96,50 @@ class Server:
         client_addr : Tuple[str, int]
             The client address (IP, port).
         """
-        try:
-            msg: Message = self._protocol.receive_message(client_sock)
-            self._logger.info(
-                f"action: receive_message | result: success | ip: {client_addr[0]} | msg: {msg}"
-            )
+        keep_handling_client: int = Server.CONTINUE
 
-            if self._running:
-                self.send_message_response(client_sock, msg)
+        while keep_handling_client in [Server.CONTINUE, Server.CONTINUE_SAFE_TO_END]:
+            try:
+                msg: Message = self._protocol.receive_message(client_sock)
+                self._logger.info(
+                    f"action: receive_message | result: success | ip: {client_addr[0]} | msg: {msg}"
+                )
 
-        except (ConnectionError, ValueError, OSError) as e:
-            self._logger.error(f"action: receive_message | result: fail | error: {e}")
+                if self._running:
+                    keep_handling_client = self.send_message_response(client_sock, msg)
 
-        finally:
-            self._protocol.shutdown_socket(client_sock)
+            except (ConnectionError, ValueError, OSError) as e:
+                if keep_handling_client != Server.CONTINUE_SAFE_TO_END:
+                    self._logger.error(
+                        f"action: receive_message | result: fail | error: {e}"
+                    )
 
-    def send_message_response(self, client_sock: Socket, msg: Message) -> None:
+                keep_handling_client = Server.STOP
+                break
+
+        self._protocol.shutdown_socket(client_sock)
+
+    def send_message_response(self, client_sock: Socket, msg: Message) -> int:
         """
-        Process a received message and send an appropriate response.
+        Dispatch message and send response.
 
-        If the message is a `MsgRegisterBets`, it is converted into
-        `Bet` objects, stored, and acknowledged with a
-        `MsgRegisterBetOk`. If the message type is unknown, a
-        `MsgRegisterBetFailed` is sent instead.
-
-        Parameters
-        ----------
-        client_sock : Socket
-            The client socket to send the response to.
-        msg : Message
-            The received protocol message.
+        - `MsgRegisterBets`: store bets, send OK/Fail → CONTINUE_SAFE_TO_END
+        - `MsgAck`: stop handling client → STOP
+        - Unknown: send failure → STOP
         """
         if isinstance(msg, MsgRegisterBets):
             message: MsgRegisterBets = msg
             self.__process_batch_bet_registration(client_sock, message)
+            return Server.CONTINUE_SAFE_TO_END
+        elif isinstance(msg, MsgAck):
+            return Server.CONTINUE_SAFE_TO_END
         else:
             # Unknown message type → send failure response
             self._protocol.send_register_bets_failed(
                 client_sock, FAILURE_UNKNOWN_MESSAGE
             )
             self._logger.error(f"action: mensaje_desconocido | result: fail")
+            return Server.STOP
 
     def __process_batch_bet_registration(
         self, client_sock: Socket, msg: MsgRegisterBets

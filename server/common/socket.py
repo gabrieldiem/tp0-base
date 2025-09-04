@@ -5,7 +5,9 @@ from common.messages import (
     Message,
     StandardBet,
     MSG_TYPE_REGISTER_BETS,
+    MSG_TYPE_ACK,
     MsgRegisterBets,
+    MsgAck,
     SIZEOF_UINT16,
     SIZEOF_UINT32,
     SIZEOF_UINT64,
@@ -75,8 +77,11 @@ class Socket:
 
         Closes both directions of communication and releases resources.
         """
-        self._socket.shutdown(socket.SHUT_RDWR)
-        self._socket.close()
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+            self._socket.close()
+        except OSError:
+            pass
 
     def accept(self) -> Tuple[Tuple[str, int], "Socket"]:
         """
@@ -272,6 +277,8 @@ class Socket:
         if msg_type == MSG_TYPE_REGISTER_BETS:
             bets: List[StandardBet] = self.__decode_bets()
             return MsgRegisterBets(bets)
+        elif msg_type == MSG_TYPE_ACK:
+            return MsgAck()
 
         # Unknown message type
         raise ValueError(f"Unknown msg_type {msg_type}")

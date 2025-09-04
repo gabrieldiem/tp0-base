@@ -79,15 +79,14 @@ func (c *Client) StartClientLoop() {
 	// pendingBet stores a bet that could not fit in the last batch
 	var pendingBet *Bet = nil
 
+	err := c.protocol.Init()
+	if err != nil {
+		return
+	}
+	defer c.resourceCleanup()
+
 	for loop == CONTINUE {
-		err := c.protocol.Init()
-		if err != nil {
-			return
-		}
-
 		loop = c.processBatch(&pendingBet, ctx)
-		c.resourceCleanup()
-
 		// Stop if no more bets are available
 		if !c.betProvider.HasNextBet() {
 			break
@@ -95,6 +94,17 @@ func (c *Client) StartClientLoop() {
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+}
+
+// confirm message received to server
+func (c *Client) SendAck(ctx context.Context) {
+	err := c.protocol.SendAck(ctx)
+	if err != nil && err != ctx.Err() {
+		log.Criticalf("action: sending_ack | result: fail")
+		return
+	}
+
+	log.Infof("action: sending_ack | result: success")
 }
 
 // processBatch groups bets into a batch (up to the configured max size)
@@ -166,6 +176,8 @@ func (c *Client) sendBatch(bets *[]Bet, betsBatchSize int, ctx context.Context) 
 	}
 
 	log.Infof("action: apuesta_enviada | result: success | cantidad: %v", len(*bets))
+
+	c.SendAck(ctx)
 
 	return CONTINUE
 }

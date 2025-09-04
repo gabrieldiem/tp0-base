@@ -6,6 +6,7 @@ from typing import Literal, List
 MSG_TYPE_REGISTER_BETS = 1
 MSG_TYPE_REGISTER_BET_OK = 2
 MSG_TYPE_REGISTER_BET_FAILED = 3
+MSG_TYPE_ACK = 4
 
 # Sizes of primitive types in bytes
 SIZEOF_UINT16 = 2
@@ -213,8 +214,6 @@ class MsgRegisterBetOk(Message):
 
     Payload format:
         [2 bytes msg_type]
-
-    Note: In this simplified version, no additional fields are sent.
     """
 
     def __init__(self):
@@ -234,6 +233,34 @@ class MsgRegisterBetOk(Message):
 
     def __str__(self) -> str:
         return f"MsgRegisterBetOk()"
+
+
+"""
+    Client → Server message: message received confirmation
+
+    Payload format:
+        [2 bytes msg_type]
+    """
+
+
+class MsgAck(Message):
+    def __init__(self):
+        self._msg_type = MSG_TYPE_ACK
+
+    def to_bytes(
+        self, character_encoding: str, endianness: Literal["big", "little"]
+    ) -> bytes:
+        """
+        Serialize the message into binary format.
+        """
+        header: bytes = self._msg_type.to_bytes(
+            SIZEOF_UINT16,
+            endianness,
+        )
+        return header
+
+    def __str__(self) -> str:
+        return f"MsgAck()"
 
 
 class MsgRegisterBetFailed(Message):
