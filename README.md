@@ -368,8 +368,11 @@ Hubo que ajustar el protocolo para enviar varias apuestas en un mismo mensaje. S
 
 #### Protocolo
 
+Se agregó un mensaje más al protocolo para confirmar la recepción del servidor de cada batch y así asegurar la correcta recepción antes de cerrar los sockets.
+
 | Mensaje               | Emisor   | Receptor | Payload                                                                                                                              | Propósito                                                                             |
 | --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | **RegisterBets**      | Cliente  | Servidor | Array de:<br> `AGENCIA: int`,<br> `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: int`,<br> `NUMERO: int` | Registrar un batch de apuestas                                                        |
 | **RegisterBetOk**     | Servidor | Cliente  |                                                                                                                                      | Informar que operación **RegisterBets** fue exitosa.                                  |
 | **RegisterBetFailed** | Servidor | Cliente  | `ERROR: int`                                                                                                                         | Informar que operación **RegisterBets** fue errónea.<br> Se provee un código de error |
+| **Ack**               | Cliente  | Servidor |                                                                                                                                      | Informar recepción de mensaje                                                         |
