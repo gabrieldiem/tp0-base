@@ -10,6 +10,7 @@ const (
 	MSG_TYPE_REGISTER_BETS       = 1
 	MSG_TYPE_REGISTER_BET_OK     = 2
 	MSG_TYPE_REGISTER_BET_FAILED = 3
+	MSG_TYPE_ACK                 = 4
 )
 
 // Message is the interface implemented by all protocol messages.
@@ -39,6 +40,11 @@ type MsgRegisterBets struct {
 	betsToRegister []Bet
 }
 
+// Confirmation of reception message
+type MsgAck struct {
+	msgType uint16
+}
+
 // NewMsgRegisterBetOk creates a new MsgRegisterBetOk message
 func NewMsgRegisterBetOk(dni, number uint32) MsgRegisterBetOk {
 	return MsgRegisterBetOk{
@@ -62,6 +68,13 @@ func NewMsgRegisterBets(bets []Bet) MsgRegisterBets {
 		msgType:        MSG_TYPE_REGISTER_BETS,
 		numberOfBets:   uint32(len(bets)),
 		betsToRegister: bets,
+	}
+}
+
+// NewMsgAck creates a new MsgAck message
+func NewMsgAck() MsgAck {
+	return MsgAck{
+		msgType: MSG_TYPE_ACK,
 	}
 }
 
@@ -119,6 +132,18 @@ func (msg MsgRegisterBets) ToBytes(endianness binary.ByteOrder) []byte {
 		// Write serialized bet
 		buf.Write(rawBet)
 	}
+
+	return buf.Bytes()
+}
+
+// ToBytes serializes MsgAck into binary format:
+//
+// | msg_type (2 bytes) |
+func (msg MsgAck) ToBytes(endianness binary.ByteOrder) []byte {
+	buf := new(bytes.Buffer)
+
+	// Write message type
+	binary.Write(buf, endianness, msg.msgType)
 
 	return buf.Bytes()
 }
