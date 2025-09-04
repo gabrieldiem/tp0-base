@@ -312,8 +312,9 @@ class Socket:
         """
         return self._socket
 
-    def get_port(self) -> int:
+    def gest_remote_address(self) -> str:
         """
-        Return the remote port number of the connected peer.
+        Return the remote address (ip:port) number of the connected peer.
         """
-        return self._socket.getpeername()[1]
+        addr = self._socket.getsockname()
+        return f"{addr[0]}:{addr[1]}"

@@ -34,19 +34,19 @@ class LotteryMonitor:
         # Event used to notify all processes when the lottery is complete
         self._lottery_complete_event = Event()
 
-    def set_readiness(self, port: int, state: int):
+    def set_readiness(self, address: str, state: int):
         """
-        Set the readiness state for a given client port.
+        Set the readiness state for a given client address (ip:port).
         """
         with self._lock:
-            self._readiness_status[port] = state
+            self._readiness_status[address] = state
 
-    def get_readiness(self, port: int) -> int:
+    def get_readiness(self, address: str) -> int:
         """
-        Get the readiness state for a given client port.
+        Get the readiness state for a given client address (ip:port).
         """
         with self._lock:
-            return self._readiness_status.get(port, None)
+            return self._readiness_status.get(address, None)
 
     def all_agencies_ready(self, max_agencies: int, sending_bets_state: int) -> bool:
         """
@@ -71,19 +71,19 @@ class LotteryMonitor:
 
             return True
 
-    def set_agency_id(self, port: int, agency_id: int):
+    def set_agency_id(self, address: str, agency_id: int):
         """
-        Associate a client port with an agency ID.
+        Associate a client address (ip:port) with an agency ID.
         """
         with self._lock:
-            self._agency_id_by_port[port] = agency_id
+            self._agency_id_by_port[address] = agency_id
 
-    def get_agency_id(self, port: int) -> int:
+    def get_agency_id(self, address: str) -> int:
         """
-        Retrieve the agency ID associated with a client port.
+        Retrieve the agency ID associated with a client address (ip:port).
         """
         with self._lock:
-            return self._agency_id_by_port.get(port, None)
+            return self._agency_id_by_port.get(address, None)
 
     def execute_lottery(self) -> bool:
         """

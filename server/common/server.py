@@ -129,8 +129,8 @@ class Server:
 
                     # After processing message, check if we should wait for lottery and send winners
                     if keep_handling_client == Server.CONTINUE:
-                        agencyPort = client_sock.get_port()
-                        current_state = lottery_monitor.get_readiness(agencyPort)
+                        agencyAddress: str = client_sock.gest_remote_address()
+                        current_state = lottery_monitor.get_readiness(agencyAddress)
 
                         # If this client is waiting for lottery, wait for completion and send winners
                         if current_state == Server.AGENCY_WAITING_FOR_LOTTERY:
@@ -172,11 +172,11 @@ class Server:
         Dispatch message and send response.
         """
         if isinstance(msg, MsgRegisterBets):
-            agencyPort = client_sock.get_port()
+            agencyAddress: str = client_sock.gest_remote_address()
             agencyId = msg.get_bets()[0]._agency
 
-            lottery_monitor.set_readiness(agencyPort, Server.AGENCY_SENDING_BETS)
-            lottery_monitor.set_agency_id(agencyPort, agencyId)
+            lottery_monitor.set_readiness(agencyAddress, Server.AGENCY_SENDING_BETS)
+            lottery_monitor.set_agency_id(agencyAddress, agencyId)
             self.__process_batch_bet_registration(client_sock, msg, lottery_monitor)
             return Server.CONTINUE
 
@@ -186,8 +186,10 @@ class Server:
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAllBetsSent):
-            agencyPort = client_sock.get_port()
-            lottery_monitor.set_readiness(agencyPort, Server.AGENCY_READY_FOR_LOTTERY)
+            agencyAddress: str = client_sock.gest_remote_address()
+            lottery_monitor.set_readiness(
+                agencyAddress, Server.AGENCY_READY_FOR_LOTTERY
+            )
 
             if self.__all_agencies_ready(lottery_monitor):
                 # Try to execute lottery (only first process will succeed)
@@ -200,8 +202,10 @@ class Server:
             return Server.CONTINUE_SAFE_TO_END
 
         elif isinstance(msg, MsgRequestWinners):
-            agencyPort = client_sock.get_port()
-            lottery_monitor.set_readiness(agencyPort, Server.AGENCY_WAITING_FOR_LOTTERY)
+            agencyAddress: str = client_sock.gest_remote_address()
+            lottery_monitor.set_readiness(
+                agencyAddress, Server.AGENCY_WAITING_FOR_LOTTERY
+            )
 
             if lottery_monitor.has_lottery_occurred():
                 # Lottery already completed, send winners immediately
@@ -209,7 +213,7 @@ class Server:
                 return Server.CONTINUE_SAFE_TO_END
             else:
                 # Lottery not complete yet, will wait in main loop
-                agency = lottery_monitor.get_agency_id(agencyPort)
+                agency = lottery_monitor.get_agency_id(agencyAddress)
                 self._logger.info(
                     f"action: agency_{agency}_waiting | result: in_progress"
                 )
@@ -228,12 +232,12 @@ class Server:
         """
         Send winners to this specific client if they're waiting for them.
         """
-        agencyPort = client_sock.get_port()
-        current_state = lottery_monitor.get_readiness(agencyPort)
+        agencyAddress: str = client_sock.gest_remote_address()
+        current_state = lottery_monitor.get_readiness(agencyAddress)
 
         # Only send winners if the agency is waiting for them
         if current_state == Server.AGENCY_WAITING_FOR_LOTTERY:
-            agencyId = lottery_monitor.get_agency_id(agencyPort)
+            agencyId = lottery_monitor.get_agency_id(agencyAddress)
 
             if agencyId:
                 dni_winners = lottery_monitor.get_winners_for_agency(agencyId)
@@ -244,11 +248,11 @@ class Server:
 
                 # Mark agency as having received winners
                 lottery_monitor.set_readiness(
-                    agencyPort, Server.AGENCY_GOT_LOTTERY_WINNERS
+                    agencyAddress, Server.AGENCY_GOT_LOTTERY_WINNERS
                 )
             else:
                 self._logger.warning(
-                    f"action: inform_winners | result: fail | reason: agency_id_not_found | port: {agencyPort}"
+                    f"action: inform_winners | result: fail | reason: agency_id_not_found | address: {agencyAddress}"
                 )
 
     def __all_agencies_ready(self, lottery_monitor: LotteryMonitor) -> bool:
