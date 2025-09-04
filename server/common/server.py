@@ -44,6 +44,7 @@ class Server:
     AGENCY_SENDING_BETS = 10
     AGENCY_READY_FOR_LOTTERY = 20
     AGENCY_WAITING_FOR_LOTTERY = 30
+    AGENCY_GOT_LOTTERY_WINNERS = 40
 
     def __init__(
         self, port: int, listen_backlog: int, number_of_agencies: int, logger: Logger
@@ -76,6 +77,9 @@ class Server:
 
         # Active client sockets
         self._clients: List[Socket] = []
+
+        self._winners: List[Tuple[int, int]] = []
+        self._winners_per_agency: Dict[int, List[int]] = {}
 
     def run(self) -> None:
         """
@@ -216,6 +220,12 @@ class Server:
             # Agency finished sending bets
             agencyPort = client_sock.get_port()
             self._readiness_status[agencyPort] = Server.AGENCY_READY_FOR_LOTTERY
+
+            if self.__all_agencies_ready():
+                # All agencies ready → compute and send winners
+                self.__do_lottery()
+                self.__inform_winners_to_waiting_agencies()
+
             return Server.CONTINUE
 
         elif isinstance(msg, MsgRequestWinners):
@@ -223,10 +233,13 @@ class Server:
             agencyPort = client_sock.get_port()
             self._readiness_status[agencyPort] = Server.AGENCY_WAITING_FOR_LOTTERY
 
-            if self.__all_agencies_waiting():
-                # All agencies ready → compute and send winners
-                self.__process_winners_request()
-                return Server.CONTINUE_SAFE_TO_END
+            if self.__lottery_occurred():
+                self.__inform_winners_to_waiting_agencies()
+
+                if self.__all_agencies_have_winners():
+                    return Server.CONTINUE_SAFE_TO_END
+                else:
+                    return Server.CONTINUE
             else:
                 # Not all agencies ready yet
                 agency = self._agency_id_by_port.get(agencyPort)
@@ -244,7 +257,27 @@ class Server:
             self._logger.error("action: mensaje_desconocido | result: fail")
             return Server.STOP
 
-    def __all_agencies_waiting(self) -> bool:
+    def __lottery_occurred(self) -> bool:
+        return len(self._winners) > 0
+
+    def __all_agencies_ready(self) -> bool:
+        """
+        Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
+        """
+        # Ensure all expected agencies are connected
+        print(self._readiness_status)
+        are_all_agencies_connected = len(self._clients) == self._max_agencies
+        if not are_all_agencies_connected:
+            return False
+
+        # Check readiness state of all agencies
+        for status in self._readiness_status.values():
+            if status == Server.AGENCY_SENDING_BETS:
+                return False
+
+        return True
+
+    def __all_agencies_have_winners(self) -> bool:
         """
         Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
         """
@@ -255,38 +288,50 @@ class Server:
 
         # Check readiness state of all agencies
         for status in self._readiness_status.values():
-            if status != Server.AGENCY_WAITING_FOR_LOTTERY:
+            if status != Server.AGENCY_GOT_LOTTERY_WINNERS:
                 return False
 
         return True
 
-    def __process_winners_request(self):
+    def __do_lottery(self):
         """
-        Compute winners and send them to each connected agency.
+        Compute winners
         """
         bets: List[Bet] = load_bets()
-        winners: List[Tuple[int, int]] = []
 
         # Collect all winning bets (agency, dni)
         for bet in bets:
             if has_won(bet):
-                winners.append((int(bet.agency), int(bet.document)))
+                self._winners.append((int(bet.agency), int(bet.document)))
 
         # Group winners by agency
-        winners_per_agency: Dict[int, List[int]] = {}
-        for agency, dni in winners:
-            if agency not in winners_per_agency:
-                winners_per_agency[agency] = []
-            winners_per_agency[agency].append(dni)
+        for agency, dni in self._winners:
+            if agency not in self._winners_per_agency:
+                self._winners_per_agency[agency] = []
+            self._winners_per_agency[agency].append(dni)
+
+        self._logger.info("action: sorteo | result: success")
+
+    def __inform_winners_to_waiting_agencies(self):
+        """
+        Send winners them to each connected agency.
+        """
 
         # Send winners to each connected client
         for client in self._clients:
             agencyPort: int = client.get_port()
-            agencyId: Optional[int] = self._agency_id_by_port.get(agencyPort)
+            if (
+                self._readiness_status.get(agencyPort)
+                == Server.AGENCY_WAITING_FOR_LOTTERY
+            ):
+                agencyId: Optional[int] = self._agency_id_by_port.get(agencyPort)
 
-            if agencyId:
-                dni_winners = winners_per_agency.get(agencyId, [])
-                self._protocol.inform_winners(client, dni_winners)
+                if agencyId:
+                    dni_winners = self._winners_per_agency.get(agencyId, [])
+                    self._protocol.inform_winners(client, dni_winners)
+                    self._readiness_status[agencyPort] = (
+                        Server.AGENCY_GOT_LOTTERY_WINNERS
+                    )
 
     def __process_batch_bet_registration(
         self, client_sock: Socket, msg: MsgRegisterBets
