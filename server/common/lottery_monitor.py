@@ -164,4 +164,5 @@ class LotteryMonitor:
                 return False
 
     def shutdown(self):
+        self._lottery_complete_event.set()
         self._manager.shutdown()

@@ -61,8 +61,12 @@ class Server:
 
         # Track child processes
         self._processes: List[Process] = []
-        self._manager = Manager()
-        self._shutdown_event = self._manager.Event()
+
+        # Shared shutdown event (proxy object)
+        self._shutdown_event = Event()
+
+        # Track child processes
+        self._processes = []
 
     def run(self) -> None:
         """
@@ -85,7 +89,6 @@ class Server:
                             client_socket,
                             addr,
                             self._lottery_monitor,
-                            self._shutdown_event,
                         ),
                     )
                     p.start()
@@ -108,7 +111,6 @@ class Server:
         client_sock: Socket,
         addr: Tuple[str, int],
         lottery_monitor: LotteryMonitor,
-        shutdown_event,
     ):
         """
         Run in a separate process: handle all communication with a single client.
@@ -119,7 +121,11 @@ class Server:
 
         try:
             keep_handling_client = Server.CONTINUE
-            while keep_handling_client != Server.STOP and not shutdown_event.is_set():
+            while (
+                keep_handling_client != Server.STOP
+                and not self._shutdown_event.is_set()
+            ):
+
                 try:
                     msg = client_sock.receive_message()
                     self._logger.info(
@@ -305,15 +311,14 @@ class Server:
         if self._stopped:
             return
 
+        self._protocol.shutdown()
+        self._lottery_monitor.shutdown()
+
         # Signal all child processes to shutdown gracefully
         self._shutdown_event.set()
 
-        self._protocol.shutdown()
-
         # Give processes time to shutdown gracefully
-        for p in self._processes:
+        for i, p in enumerate(self._processes):
             p.join()
 
         self._stopped = True
-        self._lottery_monitor.shutdown()
-        self._manager.shutdown()
