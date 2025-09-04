@@ -30,6 +30,7 @@ El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes le
    1. [Sobre el Ejercicio N°5](#Sobre-el-Ejercicio-N5)
    1. [Sobre el Ejercicio N°6](#Sobre-el-Ejercicio-N6)
    1. [Sobre el Ejercicio N°7](#Sobre-el-Ejercicio-N7)
+   1. [Sobre el Ejercicio N°8](#Sobre-el-Ejercicio-N8)
 
 ## Instrucciones de uso
 
@@ -403,3 +404,5 @@ Nuevos mensajes agregados para manejar la nueva lógica de negocio:
 | **AllBetsSent**       | Cliente  | Servidor |                                                                                                                                      | Informar que todas las apuestas de la agencia se enviaron                             |
 | **RequestWinners**    | Cliente  | Servidor |                                                                                                                                      | Solicitar información de los ganadores de la lotería de la misma agencia              |
 | **InformWinners**     | Servidor | Cliente  | Array de:<br>`DOCUMENTO: int`                                                                                                        | Dar información de los ganadores de la lotería de la misma agencia                    |
+
+### Sobre el Ejercicio N°8
