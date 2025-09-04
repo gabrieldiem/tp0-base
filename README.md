@@ -380,7 +380,19 @@ Se agregó un mensaje más al protocolo para confirmar la recepción del servido
 
 ### Sobre el Ejercicio N°7
 
+Se agregó una variable de entorno llamada `NUM_AGENCIES`, utilizada por el servidor para saber la cantidad máxima de agencias que están involucradas en el sorteo, de esa manera puede saber cuando se llega a ese número de agencias que enviaron todas sus apuestas y así iniciar el sorteo entre ellas. La variable fue agregada al generador de YAML de Docker Compose, teniendo el valor de la cantidad de clientes que se especifica en el argumento de entrada. La firma del bash script no cambió así que se usa de la misma manera.
+
+Se extendió el protocolo para soportar la notificación de finalización de envío de apuestas (`AllBetsSent`), separado del pedido de ganadores del sorteo (`InformWinners`) y el envío del servidor a las correspondientes agencias de sus ganadores (`InformWinners`).
+
+En el cliente se agregó el manejo de los mensajes mencionados, además de sumar un último ACK al final de la transmisión para informar que se recibió correctamente los DNIs de los ganadores.
+
+En el servidor, manteniendo la propiedad de single-thread pero avanzando el trabajo haciendo multitasking contra múltiples clientes, dado como entendido que el paralelismo se reserva para el ejercicio 8, y habiendo utilizado extensamente la keyword `select` de Go en el cliente, se optó por un esquema de uso de `select` bloqueante, del módulo homónimo de Python, sobre distintos sockets (los sockets de los clientes). El resultado de `select` es iterado para consumir y procesar toda la información disponible en el momento (conexiones nuevas o datos enviados de los clientes) y luego se bloquea de nuevo en el `select`.
+
+Con el uso de `select` naturalmente los clientes que ya enviaron todas sus apuestas y están esperando la información de los ganadores quedan en estado de espera del lado del servidor, mientras el servidor sigue procesando los mensajes de las demás agencias que estén activas enviando apuestas. El estado de las agencias que ya están listas se mantiene en un diccionario basado en el ID de las mismas. Cuando se detecta que la última agencia informa que ya envío todas sus apuestas, se lleva a cabo el sorteo y notificación de ganadores a los ganadores de cada agencia que haya solicitado consultar por los ganadores, sin hacer broadcast de todos los ganadores a todas las agencias, incluso si todas solicitaron conocer los ganadores.
+
 #### Protocolo
+
+Nuevos mensajes agregados para manejar la nueva lógica de negocio:
 
 | Mensaje               | Emisor   | Receptor | Payload                                                                                                                              | Propósito                                                                             |
 | --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
