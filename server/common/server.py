@@ -108,7 +108,7 @@ class Server:
         """
         Run in a separate process: handle all communication with a single client.
         """
-        self._logger.info(f"action: client_handler_started | client: {addr[0]}:{addr[1]}")
+        self._logger.info(f"action: client_handler_started | result: success | client: {addr[0]}:{addr[1]}")
         
         try:
             keep_handling_client = Server.CONTINUE
