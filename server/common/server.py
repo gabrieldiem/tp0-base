@@ -311,11 +311,12 @@ class Server:
         if self._stopped:
             return
 
-        self._protocol.shutdown()
-        self._lottery_monitor.shutdown()
-
         # Signal all child processes to shutdown gracefully
         self._shutdown_event.set()
+
+        self._protocol.shutdown()
+
+        self._lottery_monitor.shutdown()
 
         # Give processes time to shutdown gracefully
         for i, p in enumerate(self._processes):
