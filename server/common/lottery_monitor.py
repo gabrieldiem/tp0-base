@@ -83,7 +83,6 @@ class LotteryMonitor:
         Retrieve the agency ID associated with a client address (ip:port).
         """
         with self._lock:
-            print(self._agency_id_by_address)
             return self._agency_id_by_address.get(address, None)
 
     def execute_lottery(self) -> bool:

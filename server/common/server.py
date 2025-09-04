@@ -4,7 +4,7 @@ from common.socket import Socket
 from typing import Tuple, List
 from common.utils import Bet
 from common.lottery_monitor import LotteryMonitor
-from multiprocessing import Process, Event
+from multiprocessing import Process, Event, Manager
 
 from common.messages import (
     Message,
@@ -45,6 +45,8 @@ class Server:
     AGENCY_WAITING_FOR_LOTTERY = 30
     AGENCY_GOT_LOTTERY_WINNERS = 40
 
+    SIGNAL_STOPPING = 107
+
     def __init__(
         self, port: int, listen_backlog: int, number_of_agencies: int, logger: Logger
     ):
@@ -59,7 +61,8 @@ class Server:
 
         # Track child processes
         self._processes: List[Process] = []
-        self._shutdown_event = Event()
+        self._manager = Manager()
+        self._shutdown_event = self._manager.Event()
 
     def run(self) -> None:
         """
@@ -82,6 +85,7 @@ class Server:
                             client_socket,
                             addr,
                             self._lottery_monitor,
+                            self._shutdown_event,
                         ),
                     )
                     p.start()
@@ -104,6 +108,7 @@ class Server:
         client_sock: Socket,
         addr: Tuple[str, int],
         lottery_monitor: LotteryMonitor,
+        shutdown_event,
     ):
         """
         Run in a separate process: handle all communication with a single client.
@@ -114,10 +119,7 @@ class Server:
 
         try:
             keep_handling_client = Server.CONTINUE
-            while (
-                keep_handling_client != Server.STOP
-                and not self._shutdown_event.is_set()
-            ):
+            while keep_handling_client != Server.STOP and not shutdown_event.is_set():
                 try:
                     msg = client_sock.receive_message()
                     self._logger.info(
@@ -143,17 +145,18 @@ class Server:
                                     client_sock, lottery_monitor
                                 )
                                 keep_handling_client = Server.CONTINUE_SAFE_TO_END
-                            else:
-                                self._logger.error(
-                                    f"action: lottery_timeout | client: {agencyAddress}"
-                                )
-                                keep_handling_client = Server.STOP
 
                 except (ConnectionError, ValueError, OSError) as e:
                     if (
-                        keep_handling_client != Server.CONTINUE_SAFE_TO_END
+                        isinstance(e, OSError)
+                        and e.errno == Server.SIGNAL_STOPPING  # Signal stopping
+                    ) or not (
+                        keep_handling_client
+                        != Server.CONTINUE_SAFE_TO_END  # It is supposed to be stopping normally
                         and not self._shutdown_event.is_set()
                     ):
+                        pass
+                    else:
                         self._logger.error(
                             f"action: receive_message | result: fail | error: {e} | client: {addr[0]}:{addr[1]}"
                         )
