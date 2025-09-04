@@ -33,8 +33,6 @@ class Server:
     clean shutdown of sockets and proper logging of all events.
     """
 
-    MAX_AGENCIES = 5
-
     STOP = 0
     CONTINUE = 1
     CONTINUE_SAFE_TO_END = 2
@@ -43,7 +41,9 @@ class Server:
     AGENCY_READY_FOR_LOTTERY = 20
     AGENCY_WAITING_FOR_LOTTERY = 30
 
-    def __init__(self, port: int, listen_backlog: int, logger: Logger):
+    def __init__(
+        self, port: int, listen_backlog: int, number_of_agencies: int, logger: Logger
+    ):
         """
         Initialize the server with a listening socket and logger.
 
@@ -57,6 +57,7 @@ class Server:
             Logger instance for recording server events.
         """
         self._protocol = Protocol(port, listen_backlog, logger)
+        self._max_agencies: int = number_of_agencies
         self._logger: Logger = logger
         self._running: bool = False
         self._stopped: bool = False
@@ -112,7 +113,7 @@ class Server:
             self._protocol.shutdown()
 
     def __handle_new_connection(self, welcomming_socket: StdSocket) -> None:
-        if len(self._clients) >= Server.MAX_AGENCIES:
+        if len(self._clients) >= self._max_agencies:
             self._logger.warning(
                 "action: accept_connections | result: fail | reason: max_clients_reached"
             )
@@ -212,7 +213,7 @@ class Server:
         Return True if all agencies are in AGENCY_WAITING_FOR_LOTTERY state.
         """
 
-        are_all_agencies_connected = len(self._clients) == Server.MAX_AGENCIES
+        are_all_agencies_connected = len(self._clients) == self._max_agencies
         if not are_all_agencies_connected:
             return False
 

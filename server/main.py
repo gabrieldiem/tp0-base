@@ -44,6 +44,10 @@ def initialize_config() -> dict:
         config_params["logging_level"] = os.getenv(
             "LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"]
         )
+        config_params["number_of_agencies"] = int(
+            os.getenv("NUM_AGENCIES", config_params["listen_backlog"])
+        )
+
     except KeyError as e:
         raise KeyError("Key was not found. Error: {} .Aborting server".format(e))
     except ValueError as e:
@@ -63,6 +67,7 @@ def main() -> None:
         logging_level: str = config_params["logging_level"]
         port: int = config_params["port"]
         listen_backlog: int = config_params["listen_backlog"]
+        number_of_agencies: int = config_params["number_of_agencies"]
 
         logger: Logger = LoggerHandler.get_logger(logging_level)
 
@@ -74,7 +79,7 @@ def main() -> None:
         )
 
         # Initialize server
-        server: Server = Server(port, listen_backlog, logger)
+        server: Server = Server(port, listen_backlog, number_of_agencies, logger)
 
         # Register signal handler
         signal_handler: SignalHandler = SignalHandler(server, logger)
