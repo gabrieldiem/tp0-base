@@ -93,7 +93,41 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 
+	c.informAllBetsSent(ctx)
+	c.requestWinners(ctx)
+
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+}
+
+func (c *Client) requestWinners(ctx context.Context) {
+	err := c.protocol.SendRequestWinners(ctx)
+	if err != nil && err != ctx.Err() {
+		log.Criticalf("action: consulta_ganadores | result: fail | error: %s", err)
+		return
+	}
+
+	// Wait for server confirmation
+	dniWinners, err := c.protocol.ExpectWinners(ctx)
+	if err != nil && err != ctx.Err() {
+		log.Criticalf("action: consulta_ganadores | result: fail | error: %s", err)
+		return
+	}
+
+	if ctx.Err() != nil {
+		return
+	}
+
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(dniWinners))
+}
+
+func (c *Client) informAllBetsSent(ctx context.Context) {
+	err := c.protocol.SendAllBetsSent(ctx)
+	if err != nil && err != ctx.Err() {
+		log.Criticalf("action: sending_all_bets_sent | result: fail | error: %s", err)
+		return
+	}
+
+	log.Infof("action: sending_all_bets_sent | result: success")
 }
 
 // confirm message received to server

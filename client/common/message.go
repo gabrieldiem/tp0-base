@@ -11,6 +11,9 @@ const (
 	MSG_TYPE_REGISTER_BET_OK     = 2
 	MSG_TYPE_REGISTER_BET_FAILED = 3
 	MSG_TYPE_ACK                 = 4
+	MSG_TYPE_ALL_BETS_SENT       = 5
+	MSG_TYPE_REQUEST_WINNERS     = 6
+	MSG_TYPE_INFORM_WINNERS      = 7
 )
 
 // Message is the interface implemented by all protocol messages.
@@ -45,6 +48,22 @@ type MsgAck struct {
 	msgType uint16
 }
 
+// Confirmation of reception message
+type MsgAllBetsSent struct {
+	msgType uint16
+}
+
+// Confirmation of reception message
+type MsgRequestWinners struct {
+	msgType uint16
+}
+
+// Confirmation of reception message
+type MsgInformWinners struct {
+	msgType    uint16
+	DniWinners []uint32
+}
+
 // NewMsgRegisterBetOk creates a new MsgRegisterBetOk message
 func NewMsgRegisterBetOk(dni, number uint32) MsgRegisterBetOk {
 	return MsgRegisterBetOk{
@@ -75,6 +94,28 @@ func NewMsgRegisterBets(bets []Bet) MsgRegisterBets {
 func NewMsgAck() MsgAck {
 	return MsgAck{
 		msgType: MSG_TYPE_ACK,
+	}
+}
+
+// NewMsgAllBetsSent creates a new MsgAllBetsSent message
+func NewMsgAllBetsSent() MsgAllBetsSent {
+	return MsgAllBetsSent{
+		msgType: MSG_TYPE_ALL_BETS_SENT,
+	}
+}
+
+// NewMsgRequestWinners creates a new MsgRequestWinners message
+func NewMsgRequestWinners() MsgRequestWinners {
+	return MsgRequestWinners{
+		msgType: MSG_TYPE_REQUEST_WINNERS,
+	}
+}
+
+// NewMsgInformWinners creates a new MsgInformWinners message
+func NewMsgInformWinners(dniWinners []uint32) MsgInformWinners {
+	return MsgInformWinners{
+		msgType:    MSG_TYPE_INFORM_WINNERS,
+		DniWinners: dniWinners,
 	}
 }
 
@@ -144,6 +185,51 @@ func (msg MsgAck) ToBytes(endianness binary.ByteOrder) []byte {
 
 	// Write message type
 	binary.Write(buf, endianness, msg.msgType)
+
+	return buf.Bytes()
+}
+
+// ToBytes serializes MsgAllBetsSent into binary format:
+//
+// | msg_type (2 bytes) |
+func (msg MsgAllBetsSent) ToBytes(endianness binary.ByteOrder) []byte {
+	buf := new(bytes.Buffer)
+
+	// Write message type
+	binary.Write(buf, endianness, msg.msgType)
+
+	return buf.Bytes()
+}
+
+// ToBytes serializes MsgRequestWinners into binary format:
+//
+// | msg_type (2 bytes) |
+func (msg MsgRequestWinners) ToBytes(endianness binary.ByteOrder) []byte {
+	buf := new(bytes.Buffer)
+
+	// Write message type
+	binary.Write(buf, endianness, msg.msgType)
+
+	return buf.Bytes()
+}
+
+// ToBytes serializes MsgInformWinners into binary format:
+//
+// | msg_type (2 bytes) | number_of_dni_winners (8 bytes) | dni_winners (4 bytes each) |
+func (msg MsgInformWinners) ToBytes(endianness binary.ByteOrder) []byte {
+	buf := new(bytes.Buffer)
+
+	// Write message type
+	binary.Write(buf, endianness, msg.msgType)
+
+	if len(msg.DniWinners) > 0 {
+		// Write message type
+		binary.Write(buf, endianness, uint64(len(msg.DniWinners)))
+
+		for _, dni := range msg.DniWinners {
+			binary.Write(buf, endianness, dni)
+		}
+	}
 
 	return buf.Bytes()
 }

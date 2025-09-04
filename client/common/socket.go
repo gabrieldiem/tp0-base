@@ -20,6 +20,7 @@ const (
 	// Sizes of primitive types in bytes
 	SIZEOF_UINT16 = 2
 	SIZEOF_UINT32 = 4
+	SIZEOF_UINT64 = 8
 	SIZEOF_INT64  = 8
 )
 
@@ -110,6 +111,9 @@ func (s *Socket) decodeMessage(msgType uint16, done chan DecodeResult) DecodeRes
 		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_FAILED:
 		m, err := s.decodeMsgRegisterBetFailed(done)
+		return NewDecodeResult(m, err)
+	case MSG_TYPE_INFORM_WINNERS:
+		m, err := s.decodeMsgInformWinners(done)
 		return NewDecodeResult(m, err)
 	default:
 		return NewDecodeResult(nil, fmt.Errorf("unknown message type: %d", msgType))
@@ -202,5 +206,36 @@ func (s *Socket) decodeMsgRegisterBetFailed(done chan DecodeResult) (Message, er
 	return MsgRegisterBetFailed{
 		msgType:    MSG_TYPE_REGISTER_BET_FAILED,
 		error_code: errorCode,
+	}, nil
+}
+
+// decodeMsgInformWinners deserializes a MsgInformWinners from the connection.
+func (s *Socket) decodeMsgInformWinners(done chan DecodeResult) (Message, error) {
+	// Read number_of_dni_winners (8 bytes)
+	numWinnersBuf := make([]byte, SIZEOF_UINT64)
+
+	if _, err := io.ReadFull(s.conn, numWinnersBuf); err != nil {
+		done <- NewDecodeResult(nil, fmt.Errorf("failed to read number_of_dni_winners: %w", err))
+		return nil, err
+	}
+	numWinners := NETWORK_ENDIANNESS.Uint64(numWinnersBuf)
+
+	// Read each winner (4 bytes each)
+	dniWinners := make([]uint32, numWinners)
+
+	for i := uint64(0); i < numWinners; i++ {
+		dniBuf := make([]byte, SIZEOF_UINT32)
+
+		if _, err := io.ReadFull(s.conn, dniBuf); err != nil {
+			done <- NewDecodeResult(nil, fmt.Errorf("failed to read dni_winner[%d]: %w", i, err))
+			return nil, err
+		}
+		dniWinners[i] = NETWORK_ENDIANNESS.Uint32(dniBuf)
+	}
+
+	// Construct the message
+	return MsgInformWinners{
+		msgType:    MSG_TYPE_INFORM_WINNERS,
+		DniWinners: dniWinners,
 	}, nil
 }

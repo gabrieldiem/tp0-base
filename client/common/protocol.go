@@ -80,10 +80,22 @@ func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.C
 	return err
 }
 
-// // confirm last message received to server
+// confirm last message received to server
 func (p *BetProtocol) SendAck(ctx context.Context) error {
 	log.Infof("action: sending_ack | result: in_progress")
 	return p.socket.SendMessage(NewMsgAck(), ctx)
+}
+
+// confirm last message received to server
+func (p *BetProtocol) SendAllBetsSent(ctx context.Context) error {
+	log.Infof("action: sending_all_bets_sent | result: in_progress")
+	return p.socket.SendMessage(NewMsgAllBetsSent(), ctx)
+}
+
+// confirm last message received to server
+func (p *BetProtocol) SendRequestWinners(ctx context.Context) error {
+	log.Infof("action: consulta_ganadores | result: in_progress")
+	return p.socket.SendMessage(NewMsgRequestWinners(), ctx)
 }
 
 // CanGroupBet checks if adding `bet` to the current batch of bets
@@ -139,5 +151,20 @@ func (p *BetProtocol) ExpectRegisterBetOk(ctx context.Context) error {
 		return fmt.Errorf("received MsgRegisterBetFailed")
 	default:
 		return fmt.Errorf("received unexpected message")
+	}
+}
+
+func (p *BetProtocol) ExpectWinners(ctx context.Context) ([]uint32, error) {
+	msg, err := p.socket.ReceiveMessage(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	switch m := msg.(type) {
+	case MsgInformWinners:
+		return m.DniWinners, nil
+	default:
+		return nil, fmt.Errorf("received unexpected message")
 	}
 }
