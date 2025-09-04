@@ -2,17 +2,18 @@ from common.utils import Bet
 from datetime import date
 from typing import Literal, List
 
+# Message type identifiers
 MSG_TYPE_REGISTER_BETS = 1
 MSG_TYPE_REGISTER_BET_OK = 2
 MSG_TYPE_REGISTER_BET_FAILED = 3
 
+# Sizes of primitive types in bytes
 SIZEOF_UINT16 = 2
 SIZEOF_UINT32 = 4
 SIZEOF_INT64 = 8
 SIZEOF_UINT64 = 8
 
-UNKNOWN_BET_INFO = 0
-
+# Failure codes
 FAILURE_UNKNOWN_MESSAGE = 1
 FAILURE_COULD_NOT_PROCESS_BET = 2
 
@@ -22,9 +23,7 @@ class Message:
     Abstract base class for all protocol messages.
 
     Each message must implement `to_bytes()` to serialize itself into
-    the binary TLV format:
-
-        [2 bytes msg_type][4 bytes payload_length][payload...]
+    the binary format defined by the protocol.
 
     Parameters
     ----------
@@ -42,7 +41,10 @@ class Message:
 
 class StandardBet:
     """
-    Client → Server message: request to register a new bet.
+    Client → Server payload: a single bet to be registered.
+
+    This is not a top-level message, but a component of
+    `MsgRegisterBets`.
 
     Payload format:
         [4 bytes agency]
@@ -61,7 +63,7 @@ class StandardBet:
     _surname : str
         Last name of the bettor.
     _dni : int
-        DNI.
+        DNI (document number).
     _birthdate : int
         Birthdate as a Unix timestamp (seconds since epoch).
     _number : int
@@ -88,7 +90,7 @@ class StandardBet:
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
         """
-        Serialize the message into TLV binary format.
+        Serialize this bet into binary format.
         """
         payload: bytes = b""
 
@@ -98,7 +100,7 @@ class StandardBet:
             endianness,
         )
 
-        # Name
+        # Name (length + bytes)
         name_bytes: bytes = self._name.encode(character_encoding)
         payload += len(name_bytes).to_bytes(
             SIZEOF_UINT32,
@@ -106,7 +108,7 @@ class StandardBet:
         )
         payload += name_bytes
 
-        # Surname
+        # Surname (length + bytes)
         surname_bytes: bytes = self._surname.encode(character_encoding)
         payload += len(surname_bytes).to_bytes(
             SIZEOF_UINT32,
@@ -129,7 +131,7 @@ class StandardBet:
             endianness,
         )
 
-        # Header
+        # Prepend payload length (so server knows how many bytes to read)
         header: bytes = len(payload).to_bytes(
             SIZEOF_UINT32,
             endianness,
@@ -139,7 +141,7 @@ class StandardBet:
 
     def to_utility_bet(self) -> Bet:
         """
-        Convert this message into a domain `Bet` object.
+        Convert this protocol-level bet into a domain `Bet` object.
 
         Returns
         -------
@@ -159,6 +161,15 @@ class StandardBet:
 
 
 class MsgRegisterBets(Message):
+    """
+    Client → Server message: register one or more bets.
+
+    Payload format:
+        [2 bytes msg_type]
+        [4 bytes number_of_bets]
+        For each bet:
+            [4 bytes bet_length][bet_bytes]
+    """
 
     def __init__(self, bets: List[StandardBet]):
         self._msg_type = MSG_TYPE_REGISTER_BETS
@@ -169,12 +180,13 @@ class MsgRegisterBets(Message):
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
         """
-        Serialize the message into TLV binary format.
+        Serialize the message into binary format.
         """
         payload: bytes = b""
         for bet in self._bets:
             payload += bet.to_bytes(character_encoding, endianness)
 
+        # Header: msg_type + number_of_bets
         header: bytes = self._msg_type.to_bytes(
             SIZEOF_UINT16,
             endianness,
@@ -189,23 +201,20 @@ class MsgRegisterBets(Message):
         return f"MsgRegisterBets(number_of_bets={self._number_of_bets}, _bets=...)"
 
     def get_bets(self) -> List[StandardBet]:
+        """
+        Return the list of bets contained in this message.
+        """
         return self._bets
 
 
 class MsgRegisterBetOk(Message):
     """
-    Server → Client message: bet successfully registered.
+    Server → Client message: bet(s) successfully registered.
 
     Payload format:
-        [4 bytes dni]
-        [4 bytes number]
+        [2 bytes msg_type]
 
-    Attributes
-    ----------
-    _dni : int
-        DNI of the bettor.
-    _number : int
-        Bet number confirmed by the server.
+    Note: In this simplified version, no additional fields are sent.
     """
 
     def __init__(self):
@@ -215,7 +224,7 @@ class MsgRegisterBetOk(Message):
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
         """
-        Serialize the message into TLV binary format.
+        Serialize the message into binary format.
         """
         header: bytes = self._msg_type.to_bytes(
             SIZEOF_UINT16,
@@ -232,16 +241,12 @@ class MsgRegisterBetFailed(Message):
     Server → Client message: bet registration failed.
 
     Payload format:
-        [4 bytes dni]
-        [4 bytes number]
+        [2 bytes msg_type]
+        [4 bytes payload_length]
         [2 bytes error_code]
 
     Attributes
     ----------
-    _dni : int
-        DNI of the bettor. May be invalid depending on the error
-    _number : int
-        Bet number attempted. May be invalid depending on the error
     _error_code : int
         Error code indicating reason for failure.
     """
@@ -254,7 +259,7 @@ class MsgRegisterBetFailed(Message):
         self, character_encoding: str, endianness: Literal["big", "little"]
     ) -> bytes:
         """
-        Serialize the message into TLV binary format.
+        Serialize the message into binary format.
         """
         payload: bytes = b""
         payload += int(self._error_code).to_bytes(
@@ -262,6 +267,7 @@ class MsgRegisterBetFailed(Message):
             endianness,
         )
 
+        # Header: msg_type + payload_length
         header: bytes = self._msg_type.to_bytes(
             SIZEOF_UINT16,
             endianness,

@@ -120,54 +120,6 @@ class Socket:
         """
         return self.__decode_message()
 
-    def __decode_message(self) -> Message:
-        """
-        Decode a single message from the socket.
-
-        Reads the header (msg_type + payload length), then reads the
-        payload and dispatches to the appropriate decoder.
-
-        Returns
-        -------
-        Message
-            A decoded `Message` subclass instance.
-
-        Raises
-        ------
-        ConnectionError
-            If the client disconnects before the full message is read.
-        ValueError
-            If the message type is unknown.
-        """
-        sizeof_header: int = SIZEOF_UINT16
-        header: bytes = self.__receive_all(sizeof_header)
-
-        msg_type: int = int.from_bytes(
-            header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
-        )
-
-        if msg_type == MSG_TYPE_REGISTER_BETS:
-            raw_number_of_bets: bytes = self.__receive_all(SIZEOF_UINT32)
-            number_of_bets: int = int.from_bytes(
-                raw_number_of_bets[0:SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
-            )
-
-            bets: List[StandardBet] = []
-
-            for _ in range(number_of_bets):
-                raw_length: bytes = self.__receive_all(SIZEOF_UINT64)
-                length: int = int.from_bytes(
-                    raw_length[0:SIZEOF_UINT64], Socket.NETWORK_ENDIANNESS
-                )
-                payload: bytes = self.__receive_all(length)
-
-                bet: StandardBet = self.__decode_a_bet(payload)
-                bets.append(bet)
-
-            return MsgRegisterBets(bets)
-
-        raise ValueError(f"Unknown msg_type {msg_type}")
-
     def __receive_all(self, n_bytes: int) -> bytes:
         """
         Read exactly `n_bytes` from the socket.
@@ -202,7 +154,7 @@ class Socket:
 
     def __decode_a_bet(self, payload: bytes) -> StandardBet:
         """
-        Decode a `MsgRegisterBet` message from its payload.
+        Decode a `StandardBet` from its payload.
 
         Payload format:
             [4 bytes agency]
@@ -214,7 +166,8 @@ class Socket:
 
         Returns
         -------
-        MsgRegisterBet
+        StandardBet
+            A decoded bet object.
         """
         offset: int = 0
 
@@ -261,3 +214,64 @@ class Socket:
         offset += SIZEOF_UINT32
 
         return StandardBet(agency, name, surname, dni, birthdate, number)
+
+    def __decode_bets(self) -> List[StandardBet]:
+        # Read number_of_bets (4 bytes)
+        raw_number_of_bets: bytes = self.__receive_all(SIZEOF_UINT32)
+        number_of_bets: int = int.from_bytes(
+            raw_number_of_bets[0:SIZEOF_UINT32], Socket.NETWORK_ENDIANNESS
+        )
+
+        bets: List[StandardBet] = []
+
+        # Decode each bet in the batch
+        for _ in range(number_of_bets):
+            # Each bet is prefixed with its length (8 bytes)
+            raw_length: bytes = self.__receive_all(SIZEOF_UINT64)
+            length: int = int.from_bytes(
+                raw_length[0:SIZEOF_UINT64], Socket.NETWORK_ENDIANNESS
+            )
+
+            # Read the bet payload
+            payload: bytes = self.__receive_all(length)
+
+            # Decode into a StandardBet object
+            bet: StandardBet = self.__decode_a_bet(payload)
+            bets.append(bet)
+
+        return bets
+
+    def __decode_message(self) -> Message:
+        """
+        Decode a single message from the socket.
+
+        Reads the header (msg_type), then reads the payload and
+        dispatches to the appropriate decoder.
+
+        Returns
+        -------
+        Message
+            A decoded `Message` subclass instance.
+
+        Raises
+        ------
+        ConnectionError
+            If the client disconnects before the full message is read.
+        ValueError
+            If the message type is unknown.
+        """
+
+        # First, read the message type (2 bytes)
+        sizeof_header: int = SIZEOF_UINT16
+        header: bytes = self.__receive_all(sizeof_header)
+
+        msg_type: int = int.from_bytes(
+            header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
+        )
+
+        if msg_type == MSG_TYPE_REGISTER_BETS:
+            bets: List[StandardBet] = self.__decode_bets()
+            return MsgRegisterBets(bets)
+
+        # Unknown message type
+        raise ValueError(f"Unknown msg_type {msg_type}")

@@ -16,14 +16,14 @@ class Protocol:
 
     This class provides a higher-level abstraction over raw sockets,
     handling the details of the custom binary protocol. It is used
-    to manage client connections and message exchange.
+    by the server to manage client connections and message exchange.
     """
 
     NULL_ADDR = ("", 0)
 
     def __init__(self, port: int, listen_backlog: int, logger: Logger):
         """
-        Initializes the protocol with a listening socket.
+        Initialize the protocol with a listening socket.
 
         Parameters
         ----------
@@ -92,15 +92,13 @@ class Protocol:
         ----------
         client_sock : Socket
             The client socket to send the message to.
-        dni : int
-            Document number of the bettor.
-        number : int
-            Bet number confirmed by the server.
         """
         msg: MsgRegisterBetOk = MsgRegisterBetOk()
         client_sock.send_message(msg)
 
-    def send_register_bets_failed(self, client_sock: Socket, failure_reason: int) -> None:
+    def send_register_bets_failed(
+        self, client_sock: Socket, failure_reason: int
+    ) -> None:
         """
         Send a `MsgRegisterBetFailed` response to the client.
 
@@ -108,10 +106,6 @@ class Protocol:
         ----------
         client_sock : Socket
             The client socket to send the message to.
-        bet_dni : int
-            DNI of the bettor (or UNKNOWN_BET_INFO if unknown).
-        bet_number : int
-            Bet number attempted (or UNKNOWN_BET_INFO if unknown).
         failure_reason : int
             Error code indicating the reason for failure.
         """

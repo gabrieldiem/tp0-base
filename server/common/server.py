@@ -19,7 +19,7 @@ class Server:
 
     The server listens on a given port, accepts client connections,
     and processes messages defined by the custom binary protocol.
-    It specifically handles bet registration requests (`MsgRegisterBet`),
+    It specifically handles bet registration requests in batches (`MsgRegisterBets`),
     converts them into domain `Bet` objects, stores them, and responds
     with either a success (`MsgRegisterBetOk`) or failure
     (`MsgRegisterBetFailed`) message.
@@ -80,7 +80,7 @@ class Server:
 
         Reads a message from the client, logs it, and dispatches it
         to the appropriate handler. If the message is a valid
-        `MsgRegisterBet`, it is converted into a `Bet` and stored.
+        `MsgRegisterBets`, it is converted into `Bet` objects and stored.
         Otherwise, a failure response is sent.
 
         Parameters
@@ -109,8 +109,8 @@ class Server:
         """
         Process a received message and send an appropriate response.
 
-        If the message is a `MsgRegisterBet`, it is converted into a
-        `Bet` object, stored, and acknowledged with a
+        If the message is a `MsgRegisterBets`, it is converted into
+        `Bet` objects, stored, and acknowledged with a
         `MsgRegisterBetOk`. If the message type is unknown, a
         `MsgRegisterBetFailed` is sent instead.
 
@@ -125,6 +125,7 @@ class Server:
             message: MsgRegisterBets = msg
             self.__process_batch_bet_registration(client_sock, message)
         else:
+            # Unknown message type → send failure response
             self._protocol.send_register_bets_failed(
                 client_sock, FAILURE_UNKNOWN_MESSAGE
             )
@@ -133,10 +134,20 @@ class Server:
     def __process_batch_bet_registration(
         self, client_sock: Socket, msg: MsgRegisterBets
     ):
+        """
+        Process a batch bet registration request.
+
+        Converts the received `StandardBet` objects into domain `Bet`
+        objects, stores them, and sends either a success or failure
+        response back to the client.
+        """
         standard_bets: List[StandardBet] = msg.get_bets()
+
+        # Attempt to store bets in persistent storage
         storing_success: bool = self.__store_bets(standard_bets)
 
         if storing_success:
+            # Acknowledge success
             self._protocol.send_register_bets_ok(client_sock)
 
             self._logger.info(
@@ -144,6 +155,7 @@ class Server:
             )
             return
 
+        # If storing failed, send failure response
         self._protocol.send_register_bets_failed(
             client_sock, FAILURE_COULD_NOT_PROCESS_BET
         )
@@ -152,6 +164,19 @@ class Server:
         )
 
     def __store_bets(self, standard_bets: List[StandardBet]) -> bool:
+        """
+        Convert protocol-level bets into domain `Bet` objects and store them.
+
+        Parameters
+        ----------
+        standard_bets : List[StandardBet]
+            List of bets received from the client.
+
+        Returns
+        -------
+        bool
+            True if storing succeeded, False otherwise.
+        """
         bets: List[Bet] = []
         for bet in standard_bets:
             bets.append(bet.to_utility_bet())
@@ -160,6 +185,7 @@ class Server:
             store_bets(bets)
             return True
         except Exception as e:
+            # Any exception during storage is treated as a failure
             return False
 
     def stop(self) -> None:
