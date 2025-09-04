@@ -359,3 +359,17 @@ Tanto para el cliente como para el servidor se separó la lógica de negocio del
 ```
 
 ### Sobre el Ejercicio N°6
+
+Se eliminó del generador de YAML de Docker Compose las variables de entorno con los valores dados de ejemplo en la consigna para los clientes. La firma del script no cambió, por lo que se puede ejecutar de la misma manera. Se agregó el uso de volumen para el archivo CSV, para no persistir el archivo en el container, el cual debe estar ubicado en la carpeta `.data` del root del proyecto, los archivos descomprimidos con el nombre acordado por la consigna.
+
+Apalancando el uso de la interfaz de `BetProvider` hecha antes de creó un `CsvBetProvider` para leer línea a línea el archivo, generar las apuestas y los batches y así no cargarlo todo en memoria. Se itera por los registros del CSV hasta llenar el paquete ya sea por la cantidad máxima de elementos en un batch o por ajustarse a los 8KB de tamaño (incluyendo overhead del protocolo TLV).
+
+Hubo que ajustar el protocolo para enviar varias apuestas en un mismo mensaje. Se eliminó código innecesario que se había agregado por motivo de completitud en el ejercicio anterior (decoding en el cliente de mensajes que sólo los decodea el servidor) y datos innecesarios de los mensajes de confirmación.
+
+#### Protocolo
+
+| Mensaje               | Emisor   | Receptor | Payload                                                                                                                              | Propósito                                                                             |
+| --------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| **RegisterBets**      | Cliente  | Servidor | Array de:<br> `AGENCIA: int`,<br> `NOMBRE: str`,<br> `APELLIDO: str`,<br> `DOCUMENTO: int`,<br> `NACIMIENTO: int`,<br> `NUMERO: int` | Registrar un batch de apuestas                                                        |
+| **RegisterBetOk**     | Servidor | Cliente  |                                                                                                                                      | Informar que operación **RegisterBets** fue exitosa.                                  |
+| **RegisterBetFailed** | Servidor | Cliente  | `ERROR: int`                                                                                                                         | Informar que operación **RegisterBets** fue errónea.<br> Se provee un código de error |
