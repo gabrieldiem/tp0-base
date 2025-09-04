@@ -226,7 +226,7 @@ class Server:
                 self.__do_lottery()
                 self.__inform_winners_to_waiting_agencies()
 
-            return Server.CONTINUE
+            return Server.CONTINUE_SAFE_TO_END
 
         elif isinstance(msg, MsgRequestWinners):
             # Agency requests winners
@@ -238,8 +238,7 @@ class Server:
 
                 if self.__all_agencies_have_winners():
                     return Server.CONTINUE_SAFE_TO_END
-                else:
-                    return Server.CONTINUE
+                
             else:
                 # Not all agencies ready yet
                 agency = self._agency_id_by_port.get(agencyPort)
@@ -265,7 +264,6 @@ class Server:
         Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
         """
         # Ensure all expected agencies are connected
-        print(self._readiness_status)
         are_all_agencies_connected = len(self._clients) == self._max_agencies
         if not are_all_agencies_connected:
             return False
