@@ -316,5 +316,5 @@ class Socket:
         """
         Return the remote address (ip:port) number of the connected peer.
         """
-        addr = self._socket.getsockname()
+        addr = self._socket.getpeername()
         return f"{addr[0]}:{addr[1]}"

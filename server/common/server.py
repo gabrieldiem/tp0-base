@@ -123,22 +123,21 @@ class Server:
                     self._logger.info(
                         f"action: receive_message | result: success | msg: {msg} | client: {addr[0]}:{addr[1]}"
                     )
+
                     keep_handling_client = self.__send_message_response(
                         client_sock, msg, lottery_monitor
                     )
 
-                    # After processing message, check if we should wait for lottery and send winners
+                    # If client is waiting for lottery, block until results are ready
                     if keep_handling_client == Server.CONTINUE:
                         agencyAddress: str = client_sock.get_remote_address()
                         current_state = lottery_monitor.get_readiness(agencyAddress)
 
-                        # If this client is waiting for lottery, wait for completion and send winners
                         if current_state == Server.AGENCY_WAITING_FOR_LOTTERY:
                             self._logger.info(
-                                f"action: waiting_for_lottery | result: in_progress | client: {addr[0]}:{addr[1]}"
+                                f"action: waiting_for_lottery | result: in_progress | client: {agencyAddress}"
                             )
 
-                            # Wait for lottery to complete (with timeout to avoid infinite wait)
                             if lottery_monitor.wait_for_lottery_completion():
                                 self.__send_winners_to_client(
                                     client_sock, lottery_monitor
@@ -146,7 +145,7 @@ class Server:
                                 keep_handling_client = Server.CONTINUE_SAFE_TO_END
                             else:
                                 self._logger.error(
-                                    f"action: lottery_timeout | client: {addr[0]}:{addr[1]}"
+                                    f"action: lottery_timeout | client: {agencyAddress}"
                                 )
                                 keep_handling_client = Server.STOP
 
@@ -310,10 +309,6 @@ class Server:
 
         # Give processes time to shutdown gracefully
         for p in self._processes:
-            p.join(timeout=5.0)  # Wait up to 5 seconds
-            if p.is_alive():
-                self._logger.warning(f"Force terminating process {p.pid}")
-                p.terminate()
-                p.join()
+            p.join()
 
         self._stopped = True

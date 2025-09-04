@@ -23,8 +23,8 @@ class LotteryMonitor:
         self._lock = Lock()
 
         # Manager-backed shared objects (safe across processes)
-        self._readiness_status = manager.dict()  # port → state
-        self._agency_id_by_port = manager.dict()  # port → agencyId
+        self._readiness_status = manager.dict()  # address → state
+        self._agency_id_by_address = manager.dict()  # address → agencyId
         self._winners = manager.list()  # list of (agency, dni)
         self._winners_per_agency = manager.dict()  # agency → list of dni
         self._lottery_executed = manager.Value(
@@ -76,14 +76,15 @@ class LotteryMonitor:
         Associate a client address (ip:port) with an agency ID.
         """
         with self._lock:
-            self._agency_id_by_port[address] = agency_id
+            self._agency_id_by_address[address] = agency_id
 
     def get_agency_id(self, address: str) -> int:
         """
         Retrieve the agency ID associated with a client address (ip:port).
         """
         with self._lock:
-            return self._agency_id_by_port.get(address, None)
+            print(self._agency_id_by_address)
+            return self._agency_id_by_address.get(address, None)
 
     def execute_lottery(self) -> bool:
         """
