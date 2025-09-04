@@ -1,88 +1,97 @@
 from multiprocessing import Manager, Lock, Event
-from typing import Dict, List, Tuple
+from typing import List
 from common.utils import Bet, store_bets, load_bets, has_won
 
 
 class LotteryMonitor:
+    """
+    Shared monitor for coordinating state between multiple server processes.
+
+    Responsibilities:
+    - Track readiness state of each connected agency.
+    - Map client ports to agency IDs.
+    - Store and retrieve winners in a process-safe way.
+    - Ensure the lottery is executed only once.
+    - Notify all waiting processes when the lottery is complete.
+    - Provide process-safe bet storage.
+    """
+
+    BOOLEAN_TYPECODE = "b"
+
     def __init__(self):
         manager = Manager()
         self._lock = Lock()
 
-        # Manager-backed shared objects
+        # Manager-backed shared objects (safe across processes)
         self._readiness_status = manager.dict()  # port → state
         self._agency_id_by_port = manager.dict()  # port → agencyId
         self._winners = manager.list()  # list of (agency, dni)
         self._winners_per_agency = manager.dict()  # agency → list of dni
-        self._lottery_executed = manager.Value("b", False)  # boolean flag
+        self._lottery_executed = manager.Value(
+            LotteryMonitor.BOOLEAN_TYPECODE, False
+        )  # boolean flag
 
-        # Event to notify all processes when lottery is complete
+        # Event used to notify all processes when the lottery is complete
         self._lottery_complete_event = Event()
 
-    # -------------------------
-    # Readiness state
-    # -------------------------
     def set_readiness(self, port: int, state: int):
+        """
+        Set the readiness state for a given client port.
+        """
         with self._lock:
             self._readiness_status[port] = state
 
     def get_readiness(self, port: int) -> int:
+        """
+        Get the readiness state for a given client port.
+        """
         with self._lock:
             return self._readiness_status.get(port, None)
-
-    def all_readiness(self) -> Dict[int, int]:
-        with self._lock:
-            return dict(self._readiness_status)
-
-    def count_connected_agencies(self) -> int:
-        """
-        Return the number of agencies that have connected (have a readiness state).
-        """
-        with self._lock:
-            return len(self._readiness_status)
 
     def all_agencies_ready(self, max_agencies: int, sending_bets_state: int) -> bool:
         """
         Return True if all expected agencies are connected and none are still sending bets.
 
         Args:
-            max_agencies: Expected number of agencies
-            sending_bets_state: The state value that indicates an agency is still sending bets
+            max_agencies: Expected number of agencies.
+            sending_bets_state: The state value that indicates an agency is still sending bets.
 
         Returns:
-            bool: True if all agencies are ready for lottery
+            bool: True if all agencies are ready for the lottery.
         """
         with self._lock:
-            # Check if all expected agencies are connected
+            # Ensure all expected agencies are connected
             if len(self._readiness_status) < max_agencies:
                 return False
 
-            # Check if any agency is still sending bets
+            # Ensure no agency is still sending bets
             for status in self._readiness_status.values():
                 if status == sending_bets_state:
                     return False
 
             return True
 
-    # -------------------------
-    # Agency mapping
-    # -------------------------
     def set_agency_id(self, port: int, agency_id: int):
+        """
+        Associate a client port with an agency ID.
+        """
         with self._lock:
             self._agency_id_by_port[port] = agency_id
 
     def get_agency_id(self, port: int) -> int:
+        """
+        Retrieve the agency ID associated with a client port.
+        """
         with self._lock:
             return self._agency_id_by_port.get(port, None)
 
-    # -------------------------
-    # Lottery execution and waiting
-    # -------------------------
     def execute_lottery(self) -> bool:
         """
         Execute the lottery if it hasn't been executed yet.
 
         Returns:
-            bool: True if lottery was executed by this call, False if already executed
+            bool: True if lottery was executed by this call,
+                  False if it was already executed.
         """
         with self._lock:
             # Check if lottery was already executed
@@ -116,59 +125,36 @@ class LotteryMonitor:
 
     def wait_for_lottery_completion(self) -> bool:
         """
-        Wait for the lottery to be completed.
-
-        Args:
-            timeout: Maximum time to wait in seconds. None means wait indefinitely.
+        Block until the lottery is completed.
 
         Returns:
-            bool: True if lottery completed, False if timeout occurred
+            bool: True if lottery completed, False if timeout occurred.
         """
         return self._lottery_complete_event.wait()
 
-    def is_lottery_complete(self) -> bool:
-        """
-        Check if the lottery completion event is set (non-blocking).
-        """
-        return self._lottery_complete_event.is_set()
-
-    # -------------------------
-    # Winners
-    # -------------------------
-    def add_winner(self, agency: int, dni: int):
-        """
-        Manually add a winner (for testing or special cases).
-        """
-        with self._lock:
-            self._winners.append((agency, dni))
-            if agency not in self._winners_per_agency:
-                self._winners_per_agency[agency] = []
-            self._winners_per_agency[agency].append(dni)
-
-    def get_winners(self) -> List[Tuple[int, int]]:
-        with self._lock:
-            return list(self._winners)
-
     def get_winners_for_agency(self, agency: int) -> List[int]:
+        """
+        Return the list of winning DNIs for a given agency.
+        """
         with self._lock:
             return list(self._winners_per_agency.get(agency, []))
 
     def has_lottery_occurred(self) -> bool:
+        """
+        Return True if the lottery has already been executed.
+        """
         with self._lock:
             return self._lottery_executed.value
 
-    # -------------------------
-    # Bet storage (process-safe)
-    # -------------------------
     def store_bets(self, bets: List[Bet]) -> bool:
         """
         Store bets in a process-safe manner.
 
         Args:
-            bets: List of Bet objects to store
+            bets: List of Bet objects to store.
 
         Returns:
-            bool: True if storing succeeded, False otherwise
+            bool: True if storing succeeded, False otherwise.
         """
         with self._lock:
             try:
