@@ -8,26 +8,31 @@ import (
 	"net"
 )
 
+// NETWORK_ENDIANNESS defines the byte order used for encoding/decoding
+// all protocol messages. The protocol uses Big Endian.
 var NETWORK_ENDIANNESS = binary.BigEndian
 
 const (
-	// SINGLE_ITEM_BUFFER_LEN is the buffer size for internal channels.
+	// SINGLE_ITEM_BUFFER_LEN is the buffer size for internal channels
+	// used in goroutines for send/receive operations.
 	SINGLE_ITEM_BUFFER_LEN = 1
 
+	// Sizes of primitive types in bytes
 	SIZEOF_UINT16 = 2
 	SIZEOF_UINT32 = 4
 	SIZEOF_INT64  = 8
 )
 
 // Socket wraps a TCP connection and provides methods for
-// initialization, cleanup, sending, and receiving messages.
+// initialization, cleanup, sending, and receiving protocol messages.
 type Socket struct {
-	serverAddress string
+	serverAddress string // server address in "host:port" format
 	conn          net.Conn
 	closed        bool
 }
 
 // NewSocket creates a new Socket with the given server address.
+// The connection is not established until Init() is called.
 func NewSocket(serverAddress string) Socket {
 	return Socket{
 		serverAddress: serverAddress,
@@ -49,6 +54,7 @@ func (s *Socket) Init() error {
 }
 
 // Cleanup closes the connection if it is open and not already closed.
+// It marks the socket as closed to prevent double-closing.
 func (s *Socket) Cleanup() error {
 	if s.conn != nil && !s.closed {
 		s.closed = true
@@ -58,18 +64,20 @@ func (s *Socket) Cleanup() error {
 }
 
 // SendMessage serializes a Message and writes it to the connection.
-// It runs the send operation in a goroutine and supports cancellation
-// via the provided context.
+// The send operation is performed in a goroutine, and cancellation
+// is supported via the provided context.
 func (s *Socket) SendMessage(msg Message, ctx context.Context) error {
 	rawMsg := msg.ToBytes(NETWORK_ENDIANNESS)
 
 	done := make(chan error, SINGLE_ITEM_BUFFER_LEN)
 	go func() {
+		// Attempt to send all bytes
 		done <- s.sendAll(rawMsg)
 	}()
 
 	select {
 	case <-ctx.Done():
+		// Context cancelled → cleanup connection
 		s.Cleanup()
 		return ctx.Err()
 	case err := <-done:
@@ -78,6 +86,7 @@ func (s *Socket) SendMessage(msg Message, ctx context.Context) error {
 }
 
 // DecodeResult holds the result of decoding a message.
+// It is used to communicate between goroutines and the main loop.
 type DecodeResult struct {
 	msg Message
 	err error
@@ -91,8 +100,9 @@ func NewDecodeResult(msg Message, err error) DecodeResult {
 	}
 }
 
-// decodeMessage decodes a payload into a specific Message type
-// based on the given msgType and sends the result to the channel.
+// decodeMessage decodes a message payload into a specific Message type
+// based on the given msgType. It returns a DecodeResult containing
+// either the decoded message or an error.
 func (s *Socket) decodeMessage(msgType uint16, done chan DecodeResult) DecodeResult {
 	switch msgType {
 	case MSG_TYPE_REGISTER_BET_OK:
@@ -106,9 +116,8 @@ func (s *Socket) decodeMessage(msgType uint16, done chan DecodeResult) DecodeRes
 	}
 }
 
-// decodeHeader reads the message header and payload from the connection.
-// It returns the message type and payload bytes, or writes an error
-// to the channel if reading fails.
+// decodeHeader reads the message header (msgType) from the connection.
+// It returns the message type or writes an error to the channel if reading fails.
 func (s *Socket) decodeHeader(done chan DecodeResult) (uint16, error) {
 	header := make([]byte, SIZEOF_UINT16)
 
@@ -131,19 +140,23 @@ func (s *Socket) ReceiveMessage(ctx context.Context) (Message, error) {
 	go func() {
 		defer close(done)
 
+		// First, decode the header (msgType)
 		msgType, err := s.decodeHeader(done)
 
 		if err == nil {
+			// Decode the message body based on msgType
 			result := s.decodeMessage(msgType, done)
 			done <- result
 			return
 		}
 
+		// If header decoding failed, propagate error
 		done <- NewDecodeResult(nil, fmt.Errorf("failed to decode header"))
 	}()
 
 	select {
 	case <-ctx.Done():
+		// Context cancelled → cleanup connection
 		s.Cleanup()
 		return nil, ctx.Err()
 	case result := <-done:
@@ -166,17 +179,20 @@ func (s *Socket) sendAll(data []byte) error {
 	return nil
 }
 
-// DecodeMsgRegisterBetOk deserializes a MsgRegisterBetOk from payload bytes.
+// decodeMsgRegisterBetOk deserializes a MsgRegisterBetOk from the connection.
+// Since MsgRegisterBetOk only contains a msgType, no additional bytes are read.
 func (s *Socket) decodeMsgRegisterBetOk() (Message, error) {
 	return MsgRegisterBetOk{
 		msgType: MSG_TYPE_REGISTER_BET_OK,
 	}, nil
 }
 
-// DecodeMsgRegisterBetFailed deserializes a MsgRegisterBetFailed from payload bytes.
+// decodeMsgRegisterBetFailed deserializes a MsgRegisterBetFailed from the connection.
+// It reads the errorCode (2 bytes) following the msgType.
 func (s *Socket) decodeMsgRegisterBetFailed(done chan DecodeResult) (Message, error) {
 	errorCodeBuffer := make([]byte, SIZEOF_UINT16)
 
+	// Read errorCode
 	if _, err := io.ReadFull(s.conn, errorCodeBuffer); err != nil {
 		done <- NewDecodeResult(nil, fmt.Errorf("failed to read errorCode: %w", err))
 		return nil, nil
