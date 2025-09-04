@@ -238,15 +238,14 @@ class MsgRegisterBetOk(Message):
         return f"MsgRegisterBetOk()"
 
 
-"""
-    Client → Server message: message received confirmation
+class MsgAck(Message):
+    """
+    Client → Server message: acknowledge reception of the previous server message.
 
     Payload format:
         [2 bytes msg_type]
     """
 
-
-class MsgAck(Message):
     def __init__(self):
         self._msg_type = MSG_TYPE_ACK
 
@@ -313,6 +312,13 @@ class MsgRegisterBetFailed(Message):
 
 
 class MsgAllBetsSent(Message):
+    """
+    Client → Server message: notify that all bets have been sent.
+
+    Payload format:
+        [2 bytes msg_type]
+    """
+
     def __init__(self):
         self._msg_type = MSG_TYPE_ALL_BETS_SENT
 
@@ -333,6 +339,13 @@ class MsgAllBetsSent(Message):
 
 
 class MsgRequestWinners(Message):
+    """
+    Client → Server message: request the list of winners.
+
+    Payload format:
+        [2 bytes msg_type]
+    """
+
     def __init__(self):
         self._msg_type = MSG_TYPE_REQUEST_WINNERS
 
@@ -395,4 +408,7 @@ class MsgInformWinners(Message):
         return f"MsgInformWinners(dni_winners={self._dni_winners})"
 
     def get_dni_winners(self) -> List[int]:
+        """
+        Return the list of DNI winners contained in this message.
+        """
         return self._dni_winners

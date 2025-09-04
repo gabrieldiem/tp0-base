@@ -50,13 +50,15 @@ class Protocol:
         Returns
         -------
         Tuple[Tuple[str, int], Optional[Socket]]
-            A tuple containing the client address (IP, port) and the
-            client socket. If the server is shutting down, returns
-            (NULL_ADDR, None).
+            A tuple containing:
+              - client address (IP, port)
+              - client socket (Socket wrapper)
+            If the server is shutting down, returns (NULL_ADDR, None).
         """
         self._logger.info("action: accept_connections | result: in_progress")
 
         try:
+            # Accept a new client connection
             addr, client_socket = self._socket.accept()
             self._logger.info(
                 f"action: accept_connections | result: success | ip: {addr[0]}:{addr[1]}"
@@ -115,6 +117,16 @@ class Protocol:
         client_sock.send_message(msg)
 
     def inform_winners(self, client_sock: Socket, dni_winners: List[int]) -> None:
+        """
+        Send a `MsgInformWinners` message to the client with the list of winners.
+
+        Parameters
+        ----------
+        client_sock : Socket
+            The client socket to send the message to.
+        dni_winners : List[int]
+            List of DNI numbers of the winners.
+        """
         msg: MsgInformWinners = MsgInformWinners(dni_winners)
         client_sock.send_message(msg)
 
@@ -143,4 +155,10 @@ class Protocol:
         self._logger.info("action: client_connection_socket_closed  | result: success")
 
     def get_socket(self) -> StdSocket:
+        """
+        Return the underlying raw listening socket.
+
+        This is used by the server to integrate with `select.select`
+        or other low-level socket operations.
+        """
         return self._socket.get_socket()

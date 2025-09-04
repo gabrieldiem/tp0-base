@@ -7,60 +7,84 @@ from common.signal_handler import SignalHandler
 from logging import Logger
 import os
 
-
-GENERIC_ERROR_CODE = 1
-SUCCESS_CODE = 0
-
+# Logging format configuration
 LOG_FORMAT: str = "%(asctime)s %(levelname)-8s %(message)s"
 LOG_DATETIME_FORMAT: str = "%Y-%m-%d %H:%M:%S"
+
+# Default config file path
 CONFIG_FILEPATH: str = "config.ini"
 
 
 def initialize_config() -> dict:
-    """Parse env variables or config file to find program config params
+    """
+    Parse environment variables or config file to find program config params.
 
-    Function that search and parse program configuration parameters in the
-    program environment variables first and the in a config file.
-    If at least one of the config parameters is not found a KeyError exception
-    is thrown. If a parameter could not be parsed, a ValueError is thrown.
-    If parsing succeeded, the function returns a ConfigParser object
-    with config parameters
+    Priority:
+      1. Environment variables (if set)
+      2. Config file (config.ini, section DEFAULT)
+
+    Required parameters:
+      - SERVER_PORT (int)
+      - SERVER_LISTEN_BACKLOG (int)
+      - LOGGING_LEVEL (str)
+      - NUM_AGENCIES (int, defaults to listen_backlog if not set)
+
+    Raises
+    ------
+    KeyError
+        If a required key is missing in both env and config file.
+    ValueError
+        If a parameter cannot be parsed into the expected type.
+
+    Returns
+    -------
+    dict
+        Dictionary with parsed configuration parameters.
     """
 
     config = ConfigParser(os.environ)
-    # If config.ini does not exists original config object is not modified
+    # If config.ini does not exist, config object remains unchanged
     config.read(CONFIG_FILEPATH)
 
     config_params = {}
     try:
+        # Port where the server will listen
         config_params["port"] = int(
             os.getenv("SERVER_PORT", config["DEFAULT"]["SERVER_PORT"])
         )
+
+        # Maximum number of queued connections
         config_params["listen_backlog"] = int(
             os.getenv(
                 "SERVER_LISTEN_BACKLOG", config["DEFAULT"]["SERVER_LISTEN_BACKLOG"]
             )
         )
+
+        # Logging level (DEBUG, INFO, ERROR, etc.)
         config_params["logging_level"] = os.getenv(
             "LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"]
         )
+
+        # Number of agencies (defaults to listen_backlog if not explicitly set)
         config_params["number_of_agencies"] = int(
             os.getenv("NUM_AGENCIES", config_params["listen_backlog"])
         )
 
     except KeyError as e:
-        raise KeyError("Key was not found. Error: {} .Aborting server".format(e))
+        raise KeyError(f"Key was not found. Error: {e}. Aborting server")
     except ValueError as e:
-        raise ValueError(
-            "Key could not be parsed. Error: {}. Aborting server".format(e)
-        )
+        raise ValueError(f"Key could not be parsed. Error: {e}. Aborting server")
 
     return config_params
 
 
 def main() -> None:
     """
-    Returns the exit code where a non-zero exit code means there was an error
+    Main entry point of the program.
+
+    Initializes configuration, logging, server, and signal handling.
+    Starts the server loop. If an exception occurs, logs the error
+    and exits with a non-zero exit code.
     """
     try:
         config_params: dict = initialize_config()

@@ -94,8 +94,9 @@ class Socket:
         Returns
         -------
         Tuple[Tuple[str, int], Socket]
-            A tuple containing the client address (IP, port) and a
-            wrapped `Socket` instance for the client connection.
+            A tuple containing:
+              - client address (IP, port)
+              - a wrapped `Socket` instance for the client connection.
         """
         client_socket, addr = self._socket.accept()
         return addr, Socket.__from_existing(client_socket)
@@ -225,6 +226,16 @@ class Socket:
         return StandardBet(agency, name, surname, dni, birthdate, number)
 
     def __decode_bets(self) -> List[StandardBet]:
+        """
+        Decode a list of bets from the socket.
+
+        Format:
+            [4 bytes number_of_bets]
+            For each bet:
+                [8 bytes bet_length]
+                [bet_bytes]
+        """
+
         # Read number_of_bets (4 bytes)
         raw_number_of_bets: bytes = self.__receive_all(SIZEOF_UINT32)
         number_of_bets: int = int.from_bytes(
@@ -278,6 +289,7 @@ class Socket:
             header[0:SIZEOF_UINT16], Socket.NETWORK_ENDIANNESS
         )
 
+        # Dispatch based on message type
         if msg_type == MSG_TYPE_REGISTER_BETS:
             bets: List[StandardBet] = self.__decode_bets()
             return MsgRegisterBets(bets)
@@ -291,8 +303,17 @@ class Socket:
         # Unknown message type
         raise ValueError(f"Unknown msg_type {msg_type}")
 
-    def get_socket(self) -> StdSocket: 
+    def get_socket(self) -> StdSocket:
+        """
+        Return the underlying raw socket object.
+
+        Useful for integration with `select.select` or other
+        low-level socket operations.
+        """
         return self._socket
 
     def get_port(self) -> int:
+        """
+        Return the remote port number of the connected peer.
+        """
         return self._socket.getpeername()[1]

@@ -24,19 +24,23 @@ class Server:
 
     The server listens on a given port, accepts client connections,
     and processes messages defined by the custom binary protocol.
-    It specifically handles bet registration requests in batches (`MsgRegisterBets`),
-    converts them into domain `Bet` objects, stores them, and responds
-    with either a success (`MsgRegisterBetOk`) or failure
-    (`MsgRegisterBetFailed`) message.
 
-    The server runs in a loop until explicitly stopped, ensuring
-    clean shutdown of sockets and proper logging of all events.
+    Responsibilities:
+    - Accept connections from multiple agencies (clients).
+    - Handle bet registration requests (`MsgRegisterBets`).
+    - Store bets in persistent storage.
+    - Acknowledge success/failure of bet registration.
+    - Track readiness state of each agency (sending, ready, waiting).
+    - Once all agencies are waiting, compute winners and send them back.
+    - Handle graceful shutdown on stop.
     """
 
+    # Loop control constants
     STOP = 0
     CONTINUE = 1
     CONTINUE_SAFE_TO_END = 2
 
+    # Agency states
     AGENCY_SENDING_BETS = 10
     AGENCY_READY_FOR_LOTTERY = 20
     AGENCY_WAITING_FOR_LOTTERY = 30
@@ -53,6 +57,8 @@ class Server:
             Port number to bind the server to.
         listen_backlog : int
             Maximum number of queued connections.
+        number_of_agencies : int
+            Maximum number of agencies (clients) expected.
         logger : Logger
             Logger instance for recording server events.
         """
@@ -61,15 +67,20 @@ class Server:
         self._logger: Logger = logger
         self._running: bool = False
         self._stopped: bool = False
-        self._readiness_status = {}
-        self._agency_id_by_port = {}
 
+        # Track readiness state of each agency (by port)
+        self._readiness_status: Dict[int, int] = {}
+
+        # Map client port → agency ID (from bets)
+        self._agency_id_by_port: Dict[int, int] = {}
+
+        # Active client sockets
         self._clients: List[Socket] = []
 
     def run(self) -> None:
         """
         Start the main server loop with select-based multiplexing.
-        Handles up to MAX_CLIENTS clients concurrently in a single thread.
+        Handles up to `_max_agencies` clients concurrently in a single thread.
         """
         self._running = True
         self._logger.info("action: starting_loop | result: success")
@@ -81,13 +92,14 @@ class Server:
         keep_handling_client: int = Server.CONTINUE
 
         while self._running and keep_handling_client != Server.STOP:
-
             # Build the read set: listening socket + all client sockets
             read_sockets = [welcomming_socket] + [c.get_socket() for c in self._clients]
 
             try:
+                # Wait for activity on any socket
                 readable, _, _ = select.select(read_sockets, [], [])
             except OSError as e:
+                # select() failed (likely due to shutdown)
                 if (
                     keep_handling_client != Server.CONTINUE_SAFE_TO_END
                     and self._running
@@ -99,12 +111,15 @@ class Server:
 
             for sock in readable:
                 if sock is welcomming_socket:
+                    # New incoming connection
                     self.__handle_new_connection(welcomming_socket)
                 else:
+                    # Existing client sent data
                     keep_handling_client = self.__handle_current_connection(
                         sock, keep_handling_client
                     )
 
+        # Cleanup if not already stopped
         if not self._stopped:
             for client_socket in self._clients:
                 self._protocol.shutdown_socket(client_socket)
@@ -113,10 +128,15 @@ class Server:
             self._protocol.shutdown()
 
     def __handle_new_connection(self, welcomming_socket: StdSocket) -> None:
+        """
+        Accept a new client connection if capacity allows.
+        Rejects the connection if max agencies already connected.
+        """
         if len(self._clients) >= self._max_agencies:
             self._logger.warning(
                 "action: accept_connections | result: fail | reason: max_clients_reached"
             )
+            # Accept and immediately close the connection
             addr, client_socket = welcomming_socket.accept()
             self._protocol.shutdown_socket(Socket.__from_existing(client_socket))
             return
@@ -128,14 +148,20 @@ class Server:
     def __handle_current_connection(
         self, client_sock: StdSocket, keep_handling_client: int
     ) -> int:
+        """
+        Handle an incoming message from an existing client connection.
+        """
         if not self._running:
             return Server.STOP
 
+        # Find the wrapped Socket object for this raw socket
         client = next(c for c in self._clients if c.get_socket() is client_sock)
 
         try:
+            # Decode message from client
             msg = client.receive_message()
 
+            # Identify agency by its port (temporary ID until bets reveal agency ID)
             agencyPort = client_sock.getpeername()[1]
             agency = (
                 self._agency_id_by_port.get(agencyPort)
@@ -149,6 +175,7 @@ class Server:
             return self.send_message_response(client, msg)
 
         except (ConnectionError, ValueError, OSError) as e:
+            # If error occurs, close client connection
             if keep_handling_client == Server.CONTINUE_SAFE_TO_END:
                 self._logger.error(
                     f"action: receive_message | result: fail | error: {e}"
@@ -162,16 +189,23 @@ class Server:
         """
         Dispatch message and send response.
 
-        - `MsgRegisterBets`: store bets, send OK/Fail → CONTINUE_SAFE_TO_END
-        - `MsgAck`: stop handling client → STOP
+        - `MsgRegisterBets`: store bets, send OK/Fail → CONTINUE
+        - `MsgAck`: acknowledge → CONTINUE
+        - `MsgAllBetsSent`: mark agency ready → CONTINUE
+        - `MsgRequestWinners`: if all agencies waiting, send winners → CONTINUE_SAFE_TO_END
         - Unknown: send failure → STOP
         """
         if isinstance(msg, MsgRegisterBets):
             message: MsgRegisterBets = msg
             agencyPort = client_sock.get_port()
+
+            # Mark agency as sending bets
             self._readiness_status[agencyPort] = Server.AGENCY_SENDING_BETS
+
+            # Map port → agency ID (from first bet)
             self._agency_id_by_port[agencyPort] = msg.get_bets()[0]._agency
 
+            # Process and store bets
             self.__process_batch_bet_registration(client_sock, message)
             return Server.CONTINUE
 
@@ -179,21 +213,23 @@ class Server:
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAllBetsSent):
+            # Agency finished sending bets
             agencyPort = client_sock.get_port()
             self._readiness_status[agencyPort] = Server.AGENCY_READY_FOR_LOTTERY
             return Server.CONTINUE
 
         elif isinstance(msg, MsgRequestWinners):
+            # Agency requests winners
             agencyPort = client_sock.get_port()
             self._readiness_status[agencyPort] = Server.AGENCY_WAITING_FOR_LOTTERY
 
             if self.__all_agencies_waiting():
+                # All agencies ready → compute and send winners
                 self.__process_winners_request()
                 return Server.CONTINUE_SAFE_TO_END
             else:
-                agency = self._agency_id_by_port.get(
-                    self._readiness_status.get(agencyPort)
-                )
+                # Not all agencies ready yet
+                agency = self._agency_id_by_port.get(agencyPort)
                 self._logger.info(
                     f"action: agency_{agency}_waiting | result: in_progress"
                 )
@@ -205,52 +241,52 @@ class Server:
             self._protocol.send_register_bets_failed(
                 client_sock, FAILURE_UNKNOWN_MESSAGE
             )
-            self._logger.error(f"action: mensaje_desconocido | result: fail")
+            self._logger.error("action: mensaje_desconocido | result: fail")
             return Server.STOP
 
     def __all_agencies_waiting(self) -> bool:
         """
-        Return True if all agencies are in AGENCY_WAITING_FOR_LOTTERY state.
+        Return True if all agencies are connected and in AGENCY_WAITING_FOR_LOTTERY state.
         """
-
+        # Ensure all expected agencies are connected
         are_all_agencies_connected = len(self._clients) == self._max_agencies
         if not are_all_agencies_connected:
             return False
 
-        are_all_agencies_ready = True
-
+        # Check readiness state of all agencies
         for status in self._readiness_status.values():
             if status != Server.AGENCY_WAITING_FOR_LOTTERY:
-                are_all_agencies_ready = False
+                return False
 
-        return are_all_agencies_ready
+        return True
 
     def __process_winners_request(self):
+        """
+        Compute winners and send them to each connected agency.
+        """
         bets: List[Bet] = load_bets()
         winners: List[Tuple[int, int]] = []
 
+        # Collect all winning bets (agency, dni)
         for bet in bets:
             if has_won(bet):
                 winners.append((int(bet.agency), int(bet.document)))
 
+        # Group winners by agency
         winners_per_agency: Dict[int, List[int]] = {}
-
         for agency, dni in winners:
             if agency not in winners_per_agency:
                 winners_per_agency[agency] = []
             winners_per_agency[agency].append(dni)
 
+        # Send winners to each connected client
         for client in self._clients:
             agencyPort: int = client.get_port()
             agencyId: Optional[int] = self._agency_id_by_port.get(agencyPort)
 
             if agencyId:
-                dni_winners = winners_per_agency.get(agencyId)
-
-                if dni_winners:
-                    self._protocol.inform_winners(client, dni_winners)
-                else:
-                    self._protocol.inform_winners(client, [])
+                dni_winners = winners_per_agency.get(agencyId, [])
+                self._protocol.inform_winners(client, dni_winners)
 
     def __process_batch_bet_registration(
         self, client_sock: Socket, msg: MsgRegisterBets
@@ -270,7 +306,6 @@ class Server:
         if storing_success:
             # Acknowledge success
             self._protocol.send_register_bets_ok(client_sock)
-
             self._logger.info(
                 f"action: apuesta_recibida | result: success | cantidad: {len(standard_bets)}"
             )
@@ -288,11 +323,6 @@ class Server:
         """
         Convert protocol-level bets into domain `Bet` objects and store them.
 
-        Parameters
-        ----------
-        standard_bets : List[StandardBet]
-            List of bets received from the client.
-
         Returns
         -------
         bool
@@ -305,7 +335,7 @@ class Server:
         try:
             store_bets(bets)
             return True
-        except Exception as e:
+        except Exception:
             # Any exception during storage is treated as a failure
             return False
 
@@ -321,10 +351,12 @@ class Server:
         if self._stopped:
             return
 
+        # Close all client sockets
         for client_sock in self._clients:
             self._protocol.shutdown_socket(client_sock)
 
         self._clients = []
 
+        # Close listening socket
         self._protocol.shutdown()
         self._stopped = True
