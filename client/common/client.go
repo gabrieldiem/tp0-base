@@ -103,13 +103,13 @@ func (c *Client) runIteration(bets *[]Bet, betsBatchSize *int, bet *Bet, ctx con
 
 	err := c.protocol.RegisterBets(bets, *betsBatchSize, ctx)
 	if err != nil {
-		log.Criticalf("action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
+		log.Criticalf("action: apuesta_enviada | result: fail | cantidad: %v | error: %s", len(*bets), err)
 		return STOP
 	}
 
 	err = c.protocol.ExpectRegisterBetOk(ctx)
 	if err != nil && err != ctx.Err() {
-		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | dni: %v | numero: %v | error: %s", bet.Dni, bet.Number, err)
+		log.Criticalf("action: confirmacion_apuesta_enviada | result: fail | cantidad: %v | error: %s", len(*bets), err)
 		return STOP
 	}
 
@@ -117,7 +117,7 @@ func (c *Client) runIteration(bets *[]Bet, betsBatchSize *int, bet *Bet, ctx con
 		return STOP
 	}
 
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.Dni, bet.Number)
+	log.Infof("action: apuesta_enviada | result: success | cantidad: %v", len(*bets))
 
 	return CONTINUE
 }

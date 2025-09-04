@@ -93,13 +93,13 @@ func NewDecodeResult(msg Message, err error) DecodeResult {
 
 // decodeMessage decodes a payload into a specific Message type
 // based on the given msgType and sends the result to the channel.
-func (s *Socket) decodeMessage(msgType uint16, payload []byte) DecodeResult {
+func (s *Socket) decodeMessage(msgType uint16, done chan DecodeResult) DecodeResult {
 	switch msgType {
 	case MSG_TYPE_REGISTER_BET_OK:
-		m, err := DecodeMsgRegisterBetOk(NETWORK_ENDIANNESS)
+		m, err := s.decodeMsgRegisterBetOk()
 		return NewDecodeResult(m, err)
 	case MSG_TYPE_REGISTER_BET_FAILED:
-		m, err := DecodeMsgRegisterBetFailed(payload, NETWORK_ENDIANNESS)
+		m, err := s.decodeMsgRegisterBetFailed(done)
 		return NewDecodeResult(m, err)
 	default:
 		return NewDecodeResult(nil, fmt.Errorf("unknown message type: %d", msgType))
@@ -109,32 +109,16 @@ func (s *Socket) decodeMessage(msgType uint16, payload []byte) DecodeResult {
 // decodeHeader reads the message header and payload from the connection.
 // It returns the message type and payload bytes, or writes an error
 // to the channel if reading fails.
-func (s *Socket) decodeHeader(done chan DecodeResult) (uint16, []byte) {
+func (s *Socket) decodeHeader(done chan DecodeResult) (uint16, error) {
 	header := make([]byte, SIZEOF_UINT16)
-	lenBuf := make([]byte, SIZEOF_UINT32)
 
 	// Read msgType
 	if _, err := io.ReadFull(s.conn, header); err != nil {
 		done <- NewDecodeResult(nil, fmt.Errorf("failed to read msgType: %w", err))
-		return 0, nil
+		return 0, err
 	}
 	msgType := NETWORK_ENDIANNESS.Uint16(header)
-
-	// Read length
-	if _, err := io.ReadFull(s.conn, lenBuf); err != nil {
-		done <- NewDecodeResult(nil, fmt.Errorf("failed to read length: %w", err))
-		return 0, nil
-	}
-	length := NETWORK_ENDIANNESS.Uint32(lenBuf)
-
-	// Read payload
-	payload := make([]byte, length)
-	if _, err := io.ReadFull(s.conn, payload); err != nil {
-		done <- NewDecodeResult(nil, fmt.Errorf("failed to read payload: %w", err))
-		return 0, nil
-	}
-
-	return msgType, payload
+	return msgType, nil
 }
 
 // ReceiveMessage reads a message from the connection.
@@ -147,9 +131,10 @@ func (s *Socket) ReceiveMessage(ctx context.Context) (Message, error) {
 	go func() {
 		defer close(done)
 
-		msgType, payload := s.decodeHeader(done)
-		if payload != nil {
-			result := s.decodeMessage(msgType, payload)
+		msgType, err := s.decodeHeader(done)
+
+		if err == nil {
+			result := s.decodeMessage(msgType, done)
 			done <- result
 			return
 		}
@@ -179,4 +164,27 @@ func (s *Socket) sendAll(data []byte) error {
 		total += n
 	}
 	return nil
+}
+
+// DecodeMsgRegisterBetOk deserializes a MsgRegisterBetOk from payload bytes.
+func (s *Socket) decodeMsgRegisterBetOk() (Message, error) {
+	return MsgRegisterBetOk{
+		msgType: MSG_TYPE_REGISTER_BET_OK,
+	}, nil
+}
+
+// DecodeMsgRegisterBetFailed deserializes a MsgRegisterBetFailed from payload bytes.
+func (s *Socket) decodeMsgRegisterBetFailed(done chan DecodeResult) (Message, error) {
+	errorCodeBuffer := make([]byte, SIZEOF_UINT16)
+
+	if _, err := io.ReadFull(s.conn, errorCodeBuffer); err != nil {
+		done <- NewDecodeResult(nil, fmt.Errorf("failed to read errorCode: %w", err))
+		return nil, nil
+	}
+	errorCode := NETWORK_ENDIANNESS.Uint16(errorCodeBuffer)
+
+	return MsgRegisterBetFailed{
+		msgType:    MSG_TYPE_REGISTER_BET_FAILED,
+		error_code: errorCode,
+	}, nil
 }

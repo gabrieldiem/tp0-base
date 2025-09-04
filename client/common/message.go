@@ -119,24 +119,3 @@ func GetOverheadInBytes(numberOfBets int) int {
 
 	return overhead
 }
-
-// DecodeMsgRegisterBetOk deserializes a MsgRegisterBetOk from payload bytes.
-func DecodeMsgRegisterBetOk(endianness binary.ByteOrder) (Message, error) {
-
-	return MsgRegisterBetOk{
-		msgType: MSG_TYPE_REGISTER_BET_OK,
-	}, nil
-}
-
-// DecodeMsgRegisterBetFailed deserializes a MsgRegisterBetFailed from payload bytes.
-func DecodeMsgRegisterBetFailed(payload []byte, endianness binary.ByteOrder) (Message, error) {
-	buf := bytes.NewReader(payload)
-
-	var errorCode uint16
-	binary.Read(buf, endianness, &errorCode)
-
-	return MsgRegisterBetFailed{
-		msgType:    MSG_TYPE_REGISTER_BET_FAILED,
-		error_code: errorCode,
-	}, nil
-}

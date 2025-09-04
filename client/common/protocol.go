@@ -110,7 +110,7 @@ func (p *BetProtocol) ExpectRegisterBetOk(ctx context.Context) error {
 	case MsgRegisterBetOk:
 		return nil
 	case MsgRegisterBetFailed:
-		return fmt.Errorf("recevied MsgRegisterBetFailed")
+		return fmt.Errorf("received MsgRegisterBetFailed")
 	default:
 		return fmt.Errorf("received unexpected message")
 	}
