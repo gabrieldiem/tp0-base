@@ -312,7 +312,7 @@ class Socket:
         """
         return self._socket
 
-    def gest_remote_address(self) -> str:
+    def get_remote_address(self) -> str:
         """
         Return the remote address (ip:port) number of the connected peer.
         """

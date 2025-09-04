@@ -129,7 +129,7 @@ class Server:
 
                     # After processing message, check if we should wait for lottery and send winners
                     if keep_handling_client == Server.CONTINUE:
-                        agencyAddress: str = client_sock.gest_remote_address()
+                        agencyAddress: str = client_sock.get_remote_address()
                         current_state = lottery_monitor.get_readiness(agencyAddress)
 
                         # If this client is waiting for lottery, wait for completion and send winners
@@ -172,7 +172,7 @@ class Server:
         Dispatch message and send response.
         """
         if isinstance(msg, MsgRegisterBets):
-            agencyAddress: str = client_sock.gest_remote_address()
+            agencyAddress: str = client_sock.get_remote_address()
             agencyId = msg.get_bets()[0]._agency
 
             lottery_monitor.set_readiness(agencyAddress, Server.AGENCY_SENDING_BETS)
@@ -186,7 +186,7 @@ class Server:
             return Server.CONTINUE
 
         elif isinstance(msg, MsgAllBetsSent):
-            agencyAddress: str = client_sock.gest_remote_address()
+            agencyAddress: str = client_sock.get_remote_address()
             lottery_monitor.set_readiness(
                 agencyAddress, Server.AGENCY_READY_FOR_LOTTERY
             )
@@ -202,7 +202,7 @@ class Server:
             return Server.CONTINUE_SAFE_TO_END
 
         elif isinstance(msg, MsgRequestWinners):
-            agencyAddress: str = client_sock.gest_remote_address()
+            agencyAddress: str = client_sock.get_remote_address()
             lottery_monitor.set_readiness(
                 agencyAddress, Server.AGENCY_WAITING_FOR_LOTTERY
             )
@@ -232,7 +232,7 @@ class Server:
         """
         Send winners to this specific client if they're waiting for them.
         """
-        agencyAddress: str = client_sock.gest_remote_address()
+        agencyAddress: str = client_sock.get_remote_address()
         current_state = lottery_monitor.get_readiness(agencyAddress)
 
         # Only send winners if the agency is waiting for them
