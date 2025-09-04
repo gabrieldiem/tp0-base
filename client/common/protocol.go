@@ -23,7 +23,8 @@ const (
 )
 
 // NewBetProtocol creates a new BetProtocol with the given server address,
-// client ID, and maximum batch size.
+// client ID, and maximum batch size. The TCP connection is not established
+// until Init() is called.
 func NewBetProtocol(serverAddress string, id string, batchMaxAmount int) BetProtocol {
 	return BetProtocol{
 		id:             id,
@@ -80,19 +81,21 @@ func (p *BetProtocol) RegisterBets(bets *[]Bet, betsBatchSize int, ctx context.C
 	return err
 }
 
-// confirm last message received to server
+// SendAck sends an ACK message to the server to confirm
+// that the previous message was received.
 func (p *BetProtocol) SendAck(ctx context.Context) error {
 	log.Infof("action: sending_ack | result: in_progress")
 	return p.socket.SendMessage(NewMsgAck(), ctx)
 }
 
-// confirm last message received to server
+// SendAllBetsSent notifies the server that the client has finished
+// sending all bets.
 func (p *BetProtocol) SendAllBetsSent(ctx context.Context) error {
 	log.Infof("action: sending_all_bets_sent | result: in_progress")
 	return p.socket.SendMessage(NewMsgAllBetsSent(), ctx)
 }
 
-// confirm last message received to server
+// SendRequestWinners asks the server to send the list of winning bets.
 func (p *BetProtocol) SendRequestWinners(ctx context.Context) error {
 	log.Infof("action: consulta_ganadores | result: in_progress")
 	return p.socket.SendMessage(NewMsgRequestWinners(), ctx)
@@ -113,7 +116,7 @@ func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int
 		return false
 	}
 
-	// Compute size of the new bet
+	// Compute size of the new bet in bytes
 	newBetSize := len(bet.ToBytes(NETWORK_ENDIANNESS))
 
 	// Compute new total size including protocol overhead
@@ -139,32 +142,38 @@ func (p *BetProtocol) CanGroupBet(numberOfBets int, bet *Bet, betsBatchSize *int
 // Returns nil if the confirmation is successful, or an error otherwise.
 func (p *BetProtocol) ExpectRegisterBetOk(ctx context.Context) error {
 	msg, err := p.socket.ReceiveMessage(ctx)
-
 	if err != nil {
 		return err
 	}
 
 	switch msg.(type) {
 	case MsgRegisterBetOk:
+		// Server confirmed batch registration
 		return nil
 	case MsgRegisterBetFailed:
+		// Server explicitly rejected the batch
 		return fmt.Errorf("received MsgRegisterBetFailed")
 	default:
+		// Unexpected message type
 		return fmt.Errorf("received unexpected message")
 	}
 }
 
+// ExpectWinners waits for the server to send the list of winners.
+// It expects a MsgInformWinners message containing the list of DNI winners.
+// Returns the list of winners or an error if the message type is unexpected.
 func (p *BetProtocol) ExpectWinners(ctx context.Context) ([]uint32, error) {
 	msg, err := p.socket.ReceiveMessage(ctx)
-
 	if err != nil {
 		return nil, err
 	}
 
 	switch m := msg.(type) {
 	case MsgInformWinners:
+		// Return the list of winners received from the server
 		return m.DniWinners, nil
 	default:
+		// Unexpected message type
 		return nil, fmt.Errorf("received unexpected message")
 	}
 }

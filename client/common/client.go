@@ -79,12 +79,14 @@ func (c *Client) StartClientLoop() {
 	// pendingBet stores a bet that could not fit in the last batch
 	var pendingBet *Bet = nil
 
+	// Initialize protocol (connect to server)
 	err := c.protocol.Init()
 	if err != nil {
 		return
 	}
-	defer c.resourceCleanup()
+	defer c.resourceCleanup() // ensure connection is closed at the end
 
+	// Main loop: keep sending bets in batches until stop condition
 	for loop == CONTINUE {
 		loop = c.processBatch(&pendingBet, ctx)
 		// Stop if no more bets are available
@@ -92,37 +94,44 @@ func (c *Client) StartClientLoop() {
 			break
 		}
 	}
-
+	// Inform server that all bets were sent
 	c.informAllBetsSent(ctx)
+	// Request winners from server
 	c.requestWinners(ctx)
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
+// requestWinners asks the server for the list of winners and logs the result.
 func (c *Client) requestWinners(ctx context.Context) {
+	// Send request to server
 	err := c.protocol.SendRequestWinners(ctx)
 	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: consulta_ganadores | result: fail | error: %s", err)
 		return
 	}
 
-	// Wait for server confirmation
+	// Wait for server response with winners
 	dniWinners, err := c.protocol.ExpectWinners(ctx)
 	if err != nil && err != ctx.Err() {
 		log.Criticalf("action: consulta_ganadores | result: fail | error: %s", err)
 		return
 	}
 
+	// If context was cancelled (signal received), stop
 	if ctx.Err() != nil {
 		return
 	}
 
+	// Log winners
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(dniWinners))
 	log.Infof("action: info_consulta_ganadores | result: success | ganadores: %v", dniWinners)
 
+	// Confirm reception to server
 	c.SendAck(ctx)
 }
 
+// informAllBetsSent notifies the server that all bets have been sent.
 func (c *Client) informAllBetsSent(ctx context.Context) {
 	err := c.protocol.SendAllBetsSent(ctx)
 	if err != nil && err != ctx.Err() {
@@ -133,7 +142,7 @@ func (c *Client) informAllBetsSent(ctx context.Context) {
 	log.Infof("action: sending_all_bets_sent | result: success")
 }
 
-// confirm message received to server
+// SendAck confirms to the server that the last message was received.
 func (c *Client) SendAck(ctx context.Context) {
 	err := c.protocol.SendAck(ctx)
 	if err != nil && err != ctx.Err() {
@@ -171,6 +180,7 @@ func (c *Client) processBatch(pendingBet **Bet, ctx context.Context) int {
 		canGroup = c.protocol.CanGroupBet(len(bets), bet, &betsBatchSizeInBytes)
 
 		if canGroup {
+			// Add bet to current batch
 			bets = append(bets, *bet)
 		} else {
 			// Save bet for the next batch
@@ -212,8 +222,8 @@ func (c *Client) sendBatch(bets *[]Bet, betsBatchSize int, ctx context.Context) 
 		return STOP
 	}
 
+	// Success: log and send ACK
 	log.Infof("action: apuesta_enviada | result: success | cantidad: %v", len(*bets))
-
 	c.SendAck(ctx)
 
 	return CONTINUE

@@ -22,49 +22,53 @@ type Message interface {
 	ToBytes(endianness binary.ByteOrder) []byte
 }
 
-// MsgRegisterBetOk represents a message confirming that a bet (or batch of bets)
-// was successfully registered by the server.
+// MsgRegisterBetOk represents a server → client message confirming
+// that a bet (or batch of bets) was successfully registered.
 type MsgRegisterBetOk struct {
 	msgType uint16
 }
 
-// MsgRegisterBetFailed represents a message indicating that a bet registration
-// failed. It includes an error code describing the failure.
+// MsgRegisterBetFailed represents a server → client message indicating
+// that a bet registration failed. It includes an error code describing the failure.
 type MsgRegisterBetFailed struct {
 	msgType    uint16
 	error_code uint16
 }
 
-// MsgRegisterBets represents a message sent by the client to register
-// one or more bets with the server.
+// MsgRegisterBets represents a client → server message used to register
+// one or more bets. Each bet is serialized with its length prefix.
 type MsgRegisterBets struct {
 	msgType        uint16
 	numberOfBets   uint32
 	betsToRegister []Bet
 }
 
-// Confirmation of reception message
+// MsgAck represents a client → server message acknowledging
+// that the previous message was received.
 type MsgAck struct {
 	msgType uint16
 }
 
-// Confirmation of reception message
+// MsgAllBetsSent represents a client → server message notifying
+// that the client has finished sending all bets.
 type MsgAllBetsSent struct {
 	msgType uint16
 }
 
-// Confirmation of reception message
+// MsgRequestWinners represents a client → server message requesting
+// the list of winning bets.
 type MsgRequestWinners struct {
 	msgType uint16
 }
 
-// Confirmation of reception message
+// MsgInformWinners represents a server → client message containing
+// the list of winning bettors’ DNIs.
 type MsgInformWinners struct {
 	msgType    uint16
 	DniWinners []uint32
 }
 
-// NewMsgRegisterBetOk creates a new MsgRegisterBetOk message
+// NewMsgRegisterBetOk creates a new MsgRegisterBetOk message.
 func NewMsgRegisterBetOk(dni, number uint32) MsgRegisterBetOk {
 	return MsgRegisterBetOk{
 		msgType: MSG_TYPE_REGISTER_BET_OK,
@@ -90,21 +94,21 @@ func NewMsgRegisterBets(bets []Bet) MsgRegisterBets {
 	}
 }
 
-// NewMsgAck creates a new MsgAck message
+// NewMsgAck creates a new MsgAck message.
 func NewMsgAck() MsgAck {
 	return MsgAck{
 		msgType: MSG_TYPE_ACK,
 	}
 }
 
-// NewMsgAllBetsSent creates a new MsgAllBetsSent message
+// NewMsgAllBetsSent creates a new MsgAllBetsSent message.
 func NewMsgAllBetsSent() MsgAllBetsSent {
 	return MsgAllBetsSent{
 		msgType: MSG_TYPE_ALL_BETS_SENT,
 	}
 }
 
-// NewMsgRequestWinners creates a new MsgRequestWinners message
+// NewMsgRequestWinners creates a new MsgRequestWinners message.
 func NewMsgRequestWinners() MsgRequestWinners {
 	return MsgRequestWinners{
 		msgType: MSG_TYPE_REQUEST_WINNERS,
@@ -112,6 +116,7 @@ func NewMsgRequestWinners() MsgRequestWinners {
 }
 
 // NewMsgInformWinners creates a new MsgInformWinners message
+// containing the given list of DNI winners.
 func NewMsgInformWinners(dniWinners []uint32) MsgInformWinners {
 	return MsgInformWinners{
 		msgType:    MSG_TYPE_INFORM_WINNERS,
@@ -215,17 +220,21 @@ func (msg MsgRequestWinners) ToBytes(endianness binary.ByteOrder) []byte {
 
 // ToBytes serializes MsgInformWinners into binary format:
 //
-// | msg_type (2 bytes) | number_of_dni_winners (8 bytes) | dni_winners (4 bytes each) |
+// | msg_type (2 bytes) |
+// | number_of_dni_winners (8 bytes) |
+// | dni_winner_1 (4 bytes) | ... | dni_winner_n (4 bytes) |
 func (msg MsgInformWinners) ToBytes(endianness binary.ByteOrder) []byte {
 	buf := new(bytes.Buffer)
 
 	// Write message type
 	binary.Write(buf, endianness, msg.msgType)
 
+	// Only write winners if there are any
 	if len(msg.DniWinners) > 0 {
-		// Write message type
+		// Write number of winners (8 bytes)
 		binary.Write(buf, endianness, uint64(len(msg.DniWinners)))
 
+		// Write each winner DNI (4 bytes each)
 		for _, dni := range msg.DniWinners {
 			binary.Write(buf, endianness, dni)
 		}

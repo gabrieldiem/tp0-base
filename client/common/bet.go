@@ -97,8 +97,8 @@ func (b Bet) String() string {
 	)
 }
 
-// BetProvider defines an interface for providing bets.
-// Implementations can provide bets from different sources (CSV, env vars, etc.).
+// NewCsvBetProvider opens the CSV file and prepares a streaming reader.
+// It preloads the first bet so that HasNextBet() can be called immediately.
 type BetProvider interface {
 	NextBet() (*Bet, error) // returns the next bet, or error if parsing fails
 	HasNextBet() bool       // returns true if there are more bets available
@@ -107,12 +107,12 @@ type BetProvider interface {
 // CsvBetProvider provides bets by reading them line by line from a CSV file.
 // It streams bets instead of loading the entire file into memory.
 type CsvBetProvider struct {
-	agencyID   int
-	file       *os.File
+	agencyID   int      // agency ID associated with this provider
+	file       *os.File // open CSV file handle
 	scanner    *bufio.Scanner
-	nextBet    *Bet
-	nextBetErr error
-	eof        bool
+	nextBet    *Bet  // preloaded next bet
+	nextBetErr error // error encountered while preloading
+	eof        bool  // true if end of file reached
 }
 
 // NewCsvBetProvider opens the CSV file and prepares a streaming reader.
@@ -134,7 +134,7 @@ func NewCsvBetProvider(clientId int) (*CsvBetProvider, error) {
 		eof:        false,
 	}
 
-	// Preload the first bet
+	// Preload the first bet so HasNextBet() works immediately
 	if err := provider.loadNext(); err != nil {
 		provider.Close()
 		return nil, err
