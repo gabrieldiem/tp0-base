@@ -153,7 +153,7 @@ class Server:
                     break
         finally:
             self._protocol.shutdown_socket(client_sock)
-            self._logger.info(f"action: client_handler_stopped | client: {addr[0]}:{addr[1]}")
+            self._logger.info(f"action: client_handler_stopped | result: success | client: {addr[0]}:{addr[1]}")
 
     def __send_message_response(
         self, client_sock: Socket, msg: Message, lottery_monitor: LotteryMonitor
