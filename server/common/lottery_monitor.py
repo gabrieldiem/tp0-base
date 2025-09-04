@@ -19,15 +19,15 @@ class LotteryMonitor:
     BOOLEAN_TYPECODE = "b"
 
     def __init__(self):
-        manager = Manager()
+        self._manager = Manager()
         self._lock = Lock()
 
         # Manager-backed shared objects (safe across processes)
-        self._readiness_status = manager.dict()  # address → state
-        self._agency_id_by_address = manager.dict()  # address → agencyId
-        self._winners = manager.list()  # list of (agency, dni)
-        self._winners_per_agency = manager.dict()  # agency → list of dni
-        self._lottery_executed = manager.Value(
+        self._readiness_status = self._manager.dict()  # address → state
+        self._agency_id_by_address = self._manager.dict()  # address → agencyId
+        self._winners = self._manager.list()  # list of (agency, dni)
+        self._winners_per_agency = self._manager.dict()  # agency → list of dni
+        self._lottery_executed = self._manager.Value(
             LotteryMonitor.BOOLEAN_TYPECODE, False
         )  # boolean flag
 
@@ -162,3 +162,6 @@ class LotteryMonitor:
                 return True
             except Exception:
                 return False
+
+    def shutdown(self):
+        self._manager.shutdown()

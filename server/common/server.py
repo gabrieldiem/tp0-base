@@ -315,3 +315,5 @@ class Server:
             p.join()
 
         self._stopped = True
+        self._lottery_monitor.shutdown()
+        self._manager.shutdown()

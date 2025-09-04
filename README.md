@@ -406,3 +406,19 @@ Nuevos mensajes agregados para manejar la nueva lógica de negocio:
 | **InformWinners**     | Servidor | Cliente  | Array de:<br>`DOCUMENTO: int`                                                                                                        | Dar información de los ganadores de la lotería de la misma agencia                    |
 
 ### Sobre el Ejercicio N°8
+
+El approach utilizado para conseguir el paralelismo en el servidor fue el de multiproceesing dadas las limitaciones del módulo threading de Python.
+
+El main thread se queda aceptando conexiones mientras que cada nueva conexión se deriva a un nuevo proceso para que maneje el I/O con el socket de su cliente. Se comparten entre procesos un LotteryMonitor que contiene un multiprocessing lock para que el accesso a las operaciones unsafe del módulo utils se hagan de manera ordenada. Asimismo, en dicho monitor se encuentra información compartida sobre el estatus de los procesos en respecto a si se puede realizar la lotería, también con acceso y modificación protegido con el lock interno.
+
+Además, hay 2 multiprocessing Events, usando prácticamente como una conditional variable, uno para cuando se recibe una signal para parar el programa (que siempre llegan al proceso inicial) y de esta manera hacer notar a los otros procesos que deben comenzar el shutdown. El otro Event se utiliza para bloquear a los procesos cuando solicitaron información sobre los ganadores del sorteo pero no todas las agencias enviaron el total de sus apuestas aún, de esta manera cuando el último proceso notifica que envió todas sus apuestas, setea el Event mediante el LotteryMonitor y todos los procesos pueden consumir (con la sección crítica protegida por el LotteryMonitor) la información para enviar los ganadores a los clientes a quienes están conectados.
+
+Cada proceso que maneja un cliente se encarga de cerrar sus recursos. Se utiliza un multiprocessing Manager para que sirva de proxy detrás de ciertos datos compartidos, principalmente en el LotteryMonitor. También se cierran los recursos de los managers en sí mismos.
+
+Se mantiene la lógica del ejercicio anterior de tener una cantidad máxima de agencias determinada por la variable de entorno `NUM_AGENCIES`.
+
+No se hizo ninguna modificación sobre el protocolo ni sobre el cliente.
+
+#### Limitaciones
+
+Este approach, si bien consigue el paralelismo, tiene espacio de mejora, ya que en un entorno de muchos clientes no es una opción escalable por la cantidad de recursos que insume. Se podría optar por un esquema de process workers.
